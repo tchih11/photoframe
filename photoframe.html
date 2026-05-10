@@ -184,7 +184,7 @@
     padding: 20px 24px 36px;
     background: linear-gradient(transparent, rgba(0,0,0,0.7));
     display: flex; align-items: center; justify-content: space-between;
-    z-index: 30;
+    z-index: 60;
     opacity: 0;
     transition: opacity 0.4s;
     pointer-events: none;
@@ -265,7 +265,7 @@
 <body>
 
 <!-- Night overlay -->
-<div id="night-overlay"></div>
+<div id="night-overlay" onclick="showHud()"></div>
 
 <!-- Progress bar -->
 <div id="progress"></div>
