@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
 <meta name="apple-mobile-web-app-title" content="PhotoFrame">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com data:; connect-src 'self' https://photoslibrary.googleapis.com https://accounts.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com data:; connect-src 'self' https://photoslibrary.googleapis.com https://accounts.google.com;">
 <title>PhotoFrame</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400&display=swap');
@@ -285,7 +285,10 @@
     <strong id="hud-counter">–</strong>
     <span id="hud-interval">–秒ごとに切り替え</span>
   </div>
-  <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
+  <div style="display:flex;gap:8px;">
+    <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
+    <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
+  </div>
 </div>
 
 <!-- Setup -->
@@ -479,10 +482,19 @@ function startAuth() {
   localStorage.setItem('pf_client_id', clientId);
 
   if (!window.google) {
-    document.getElementById('auth-status').textContent = 'Google SDKの読み込み中です。しばらくお待ちください。';
-    setTimeout(startAuth, 1000);
+    // SDK未ロード: 最大5秒リトライ、それ以上は広告ブロック等を案内
+    let retryCount = (startAuth._retryCount || 0) + 1;
+    startAuth._retryCount = retryCount;
+    if (retryCount <= 5) {
+      document.getElementById('auth-status').textContent = 'Google SDKを読み込み中… (' + retryCount + '/5)';
+      setTimeout(startAuth, 1000);
+    } else {
+      startAuth._retryCount = 0;
+      document.getElementById('auth-status').textContent = '⚠️ SDKの読み込みに失敗しました。広告ブロッカーをオフにするか、ページを再読み込みしてください。';
+    }
     return;
   }
+  startAuth._retryCount = 0;
   initGSI();
   tokenClient.requestAccessToken();
 }
@@ -582,6 +594,17 @@ async function fetchPhotos() {
       }
 
       const res = await fetch(url, options);
+
+      // 401: トークン期限切れ → 再ログインを促す
+      if (res.status === 401) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('setup').style.display = 'flex';
+        showScreen(2);
+        document.getElementById('auth-status').textContent = 'セッションが切れました。再ログインしてください。';
+        return [];
+      }
+      if (!res.ok) throw new Error('APIエラー: ' + res.status);
+
       const data = await res.json();
       const items = data.mediaItems || [];
       // 写真のみ（動画除外）
@@ -591,6 +614,7 @@ async function fetchPhotos() {
 
     return allPhotos;
   } catch (e) {
+    console.error('fetchPhotos error:', e);
     return [];
   }
 }
@@ -636,6 +660,15 @@ async function startSlideshow() {
   startTimer();
   checkNight();
   setInterval(checkNight, 60000);
+
+  // baseUrlは約60分で失効するため、50分ごとに写真URLを再取得
+  setInterval(async () => {
+    const refreshed = await fetchPhotos();
+    if (refreshed.length > 0) {
+      photos = shuffle(refreshed);
+      currentIndex = 0;
+    }
+  }, 50 * 60 * 1000);
 
   // tap to show HUD
   document.body.addEventListener('click', showHud);
@@ -710,7 +743,29 @@ function startTimer() {
 }
 
 // ===== NIGHT MODE =====
+let nightManualOverride = null; // null=自動, true=強制ON, false=強制OFF
+
+function toggleNight() {
+  const overlay = document.getElementById('night-overlay');
+  const isCurrentlyOn = overlay.classList.contains('on');
+
+  if (isCurrentlyOn) {
+    // 現在ONなら強制OFFに
+    nightManualOverride = false;
+    overlay.classList.remove('on');
+    document.getElementById('night-toggle-btn').textContent = '🌙 夜間モード';
+  } else {
+    // 現在OFFなら強制ONに
+    nightManualOverride = true;
+    overlay.classList.add('on');
+    document.getElementById('night-toggle-btn').textContent = '☀️ 夜間モード解除';
+  }
+}
+
 function checkNight() {
+  // 手動オーバーライド中は自動切替しない
+  if (nightManualOverride !== null) return;
+
   const h = new Date().getHours();
   const overlay = document.getElementById('night-overlay');
   let isNight;
@@ -720,6 +775,7 @@ function checkNight() {
     isNight = h >= nightStart && h < nightEnd;
   }
   overlay.classList.toggle('on', isNight);
+  document.getElementById('night-toggle-btn').textContent = isNight ? '☀️ 夜間モード解除' : '🌙 夜間モード';
 }
 
 // ===== HUD =====
