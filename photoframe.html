@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
 <meta name="apple-mobile-web-app-title" content="PhotoFrame">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com data:; connect-src 'self' https://photoslibrary.googleapis.com https://accounts.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com https://lh3.googleusercontent.com data:; connect-src 'self' https://www.googleapis.com https://accounts.google.com;">
 <title>PhotoFrame</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400&display=swap');
@@ -29,11 +29,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* ========== SLIDESHOW ========== */
-  #slideshow {
-    position: fixed; inset: 0;
-    transition: opacity 0.8s ease;
-  }
+  #slideshow { position: fixed; inset: 0; }
 
   .slide {
     position: absolute; inset: 0;
@@ -46,26 +42,14 @@
   .slide.active { opacity: 1; }
   .slide.prev   { opacity: 0; }
 
-  /* night overlay */
-  #night-overlay {
-    position: fixed; inset: 0;
-    background: #000;
-    opacity: 0;
-    pointer-events: none;
-    z-index: 50;
-    transition: opacity 2s ease;
-  }
-  #night-overlay.on { opacity: 1; pointer-events: all; }
-
-  /* ========== SETUP SCREEN ========== */
   #setup {
     position: fixed; inset: 0;
     background: linear-gradient(135deg, #0a0a0a 0%, #1a1208 100%);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 0;
     z-index: 100;
     padding: 32px 24px;
+    overflow-y: auto;
   }
 
   .logo {
@@ -76,6 +60,7 @@
     margin-bottom: 6px;
   }
   .logo span { font-style: italic; }
+
   .tagline {
     font-size: 12px;
     color: rgba(255,255,255,0.4);
@@ -88,7 +73,7 @@
     background: var(--glass);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 28px 28px;
+    padding: 28px;
     width: 100%;
     max-width: 420px;
     backdrop-filter: blur(20px);
@@ -115,7 +100,7 @@
     font-weight: 300;
   }
 
-  input[type="text"], input[type="number"], input[type="password"] {
+  input[type="text"], input[type="number"] {
     width: 100%;
     background: rgba(255,255,255,0.05);
     border: 1px solid var(--border);
@@ -130,9 +115,6 @@
   input:focus { border-color: var(--accent); }
   input::placeholder { color: rgba(255,255,255,0.2); }
 
-  .row { display: flex; gap: 12px; }
-  .row .field { flex: 1; }
-
   .btn {
     width: 100%;
     max-width: 420px;
@@ -144,7 +126,6 @@
     font-size: 15px;
     font-family: 'DM Sans', sans-serif;
     font-weight: 400;
-    letter-spacing: 0.3px;
     cursor: pointer;
     transition: opacity 0.2s, transform 0.1s;
     margin-top: 4px;
@@ -175,9 +156,19 @@
     max-width: 380px;
     margin-top: 16px;
   }
-  .hint a { color: var(--accent); text-decoration: none; }
 
-  /* ========== HUD (tap to show/hide) ========== */
+  .steps { display: flex; gap: 8px; margin-bottom: 36px; }
+  .step {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    transition: background 0.3s;
+  }
+  .step.active { background: var(--accent); }
+
+  .screen { display: none; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
   #hud {
     position: fixed;
     bottom: 0; left: 0; right: 0;
@@ -191,11 +182,7 @@
   }
   #hud.visible { opacity: 1; pointer-events: all; }
 
-  .hud-info {
-    font-size: 12px;
-    color: rgba(255,255,255,0.6);
-    line-height: 1.8;
-  }
+  .hud-info { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.8; }
   .hud-info strong { color: #fff; font-weight: 400; font-size: 14px; display: block; }
 
   .hud-btn {
@@ -208,11 +195,8 @@
     padding: 8px 14px;
     cursor: pointer;
     backdrop-filter: blur(10px);
-    transition: background 0.2s;
   }
-  .hud-btn:active { background: rgba(255,255,255,0.2); }
 
-  /* progress bar */
   #progress {
     position: fixed;
     bottom: 0; left: 0;
@@ -220,19 +204,17 @@
     background: var(--accent);
     width: 0%;
     z-index: 40;
-    transition: width linear;
     opacity: 0.6;
   }
 
-  /* loading */
   #loading {
     position: fixed; inset: 0;
     background: var(--dark);
-    display: flex; flex-direction: column;
+    display: none;
+    flex-direction: column;
     align-items: center; justify-content: center;
     gap: 20px;
     z-index: 90;
-    display: none;
   }
   .spinner {
     width: 36px; height: 36px;
@@ -243,59 +225,31 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 13px; color: rgba(255,255,255,0.4); letter-spacing: 1px; }
-
-  /* step indicator */
-  .steps {
-    display: flex; gap: 8px;
-    margin-bottom: 36px;
-  }
-  .step {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.15);
-    transition: background 0.3s;
-  }
-  .step.active { background: var(--accent); }
-
-  /* screens */
-  .screen { display: none; }
-  .screen.active { display: flex; flex-direction: column; align-items: center; width: 100%; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
-<!-- Night overlay -->
-<div id="night-overlay" onclick="showHud()"></div>
-
-<!-- Progress bar -->
 <div id="progress"></div>
 
-<!-- Loading -->
 <div id="loading">
   <div class="spinner"></div>
   <div class="loading-text">写真を読み込んでいます</div>
 </div>
 
-<!-- Slideshow -->
 <div id="slideshow"></div>
 
-<!-- HUD -->
 <div id="hud">
   <div class="hud-info">
     <strong id="hud-counter">–</strong>
     <span id="hud-interval">–秒ごとに切り替え</span>
   </div>
-  <div style="display:flex;gap:8px;">
-    <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
-    <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
-  </div>
+  <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
 </div>
 
-<!-- Setup -->
 <div id="setup">
 
-  <!-- Step 1: API認証 -->
+  <!-- Step 1: Client ID -->
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
@@ -304,7 +258,6 @@
       <div class="step"></div>
       <div class="step"></div>
     </div>
-
     <div class="card">
       <div class="card-title">Step 1 — Google API 設定</div>
       <div class="field">
@@ -312,16 +265,12 @@
         <input type="text" id="client-id" placeholder="xxxx.apps.googleusercontent.com">
       </div>
     </div>
-
     <button class="btn" onclick="nextStep(1)">次へ</button>
     <div class="error-msg" id="err-1"></div>
-    <div class="hint">
-      Google Cloud Consoleで取得した<br>OAuth 2.0 クライアントIDを入力してください。<br>
-      <a href="#" onclick="showHelp()">取得方法を見る →</a>
-    </div>
+    <div class="hint">Google Cloud ConsoleのOAuth 2.0クライアントIDを入力してください</div>
   </div>
 
-  <!-- Step 2: アルバム選択 -->
+  <!-- Step 2: Googleログイン -->
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
@@ -330,27 +279,20 @@
       <div class="step active"></div>
       <div class="step"></div>
     </div>
-
     <div class="card">
-      <div class="card-title">Step 2 — Google フォト認証</div>
+      <div class="card-title">Step 2 — Googleドライブ認証</div>
       <div class="field">
-        <label>Googleアカウントでログインして写真へのアクセスを許可します</label>
+        <label>フォトフレーム専用のGoogleアカウントでログインしてください</label>
       </div>
       <button class="btn" id="auth-btn" onclick="startAuth()" style="margin-top:0">Googleでログイン</button>
       <div id="auth-status" style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:12px;text-align:center;min-height:16px;"></div>
     </div>
-
-    <div class="card" id="album-card" style="display:none">
-      <div class="card-title">アルバムを選択</div>
-      <div id="album-list" style="max-height:200px;overflow-y:auto;"></div>
-    </div>
-
     <button class="btn" id="step2-next" onclick="nextStep(2)" disabled>次へ</button>
     <button class="btn btn-ghost" onclick="prevStep(2)">戻る</button>
     <div class="error-msg" id="err-2"></div>
   </div>
 
-  <!-- Step 3: 表示設定 -->
+  <!-- Step 3: フォルダID・表示設定 -->
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
@@ -359,75 +301,43 @@
       <div class="step"></div>
       <div class="step active"></div>
     </div>
-
     <div class="card">
       <div class="card-title">Step 3 — 表示設定</div>
       <div class="field">
-        <label>スライド間隔（秒）</label>
-        <input type="number" id="interval" value="15" min="3" max="3600" placeholder="例：15">
+        <label>GoogleドライブのフォルダID</label>
+        <input type="text" id="folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuV">
       </div>
-      <div class="row">
-        <div class="field">
-          <label>夜間暗転 開始</label>
-          <input type="number" id="night-start" value="22" min="0" max="23" placeholder="22">
-        </div>
-        <div class="field">
-          <label>夜間暗転 終了</label>
-          <input type="number" id="night-end" value="7" min="0" max="23" placeholder="7">
-        </div>
+      <div class="field">
+        <label>スライド間隔（秒）</label>
+        <input type="number" id="interval" value="15" min="3" max="3600">
       </div>
     </div>
-
     <button class="btn" onclick="startSlideshow()">フォトフレームを開始</button>
     <button class="btn btn-ghost" onclick="prevStep(3)">戻る</button>
     <div class="error-msg" id="err-3"></div>
     <div class="hint">
-      SafariでホームのSafariメニューから<br>「ホーム画面に追加」すると全画面で使えます
+      フォルダIDはGoogleドライブでフォルダを開いたときのURLの末尾の文字列です<br>
+      例）drive.google.com/drive/folders/<b style="color:var(--accent)">ここがフォルダID</b>
     </div>
-  </div>
-
-  <!-- Help screen -->
-  <div class="screen" id="screen-help">
-    <div class="logo">Photo<span>Frame</span></div>
-    <div class="tagline">API キーの取得方法</div>
-
-    <div class="card" style="text-align:left;line-height:2;font-size:13px;color:rgba(255,255,255,0.7);">
-      <div class="card-title">Google Cloud Console 設定手順</div>
-      1. <a href="https://console.cloud.google.com" style="color:var(--accent)">console.cloud.google.com</a> を開く<br>
-      2. 新しいプロジェクトを作成<br>
-      3. 「APIとサービス」→「ライブラリ」<br>
-      4. 「Photos Library API」を有効化<br>
-      5. 「認証情報」→「認証情報を作成」<br>
-      6. 「OAuthクライアントID」を選択<br>
-      7. アプリの種類：「ウェブアプリケーション」<br>
-      8. 承認済みJavaScriptオリジンに<br>
-      &nbsp;&nbsp;&nbsp;<code style="font-size:11px;color:var(--accent)">このページのURL</code>を追加<br>
-      9. 作成してClient IDをコピー
-    </div>
-
-    <button class="btn" onclick="showScreen(1)">戻る</button>
   </div>
 
 </div>
 
 <script>
-// ===== STATE =====
 let clientId = '';
 let accessToken = '';
 let photos = [];
 let currentIndex = 0;
 let slideTimer = null;
-let progressTimer = null;
 let intervalSec = 15;
-let nightStart = 22;
-let nightEnd = 7;
-let selectedAlbumId = null;
+let folderId = '';
 let hudTimeout = null;
+let activeLayer = 0;
 
-// ===== SETUP NAVIGATION =====
+// ===== NAVIGATION =====
 function showScreen(n) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const target = n === 'help' ? document.getElementById('screen-help') : document.getElementById('screen-' + n);
+  const target = document.getElementById('screen-' + n);
   if (target) target.classList.add('active');
 }
 
@@ -436,43 +346,35 @@ function nextStep(from) {
     clientId = document.getElementById('client-id').value.trim();
     if (!clientId) { setErr(1, 'Client IDを入力してください'); return; }
     setErr(1, '');
-    // save
     localStorage.setItem('pf_client_id', clientId);
     showScreen(2);
   } else if (from === 2) {
-    if (!selectedAlbumId && !accessToken) { setErr(2, 'ログインしてアルバムを選択してください'); return; }
+    if (!accessToken) { setErr(2, 'ログインしてください'); return; }
     setErr(2, '');
     showScreen(3);
   }
 }
 
-function prevStep(from) {
-  showScreen(from - 1);
-}
-
-function showHelp() { showScreen('help'); }
+function prevStep(from) { showScreen(from - 1); }
 function setErr(n, msg) { document.getElementById('err-' + n).textContent = msg; }
 
-// ===== GOOGLE AUTH (GSI Token Client) =====
-// Implicit Flowは非推奨のため、Google Identity Services SDKを使用
+// ===== AUTH =====
 let tokenClient = null;
 
 function initGSI() {
   if (!window.google) return;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: clientId,
-    scope: 'https://www.googleapis.com/auth/photoslibrary.readonly',
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
     callback: (response) => {
       if (response.error) {
         document.getElementById('auth-status').textContent = 'ログインに失敗しました: ' + response.error;
         return;
       }
-      // セキュリティ向上: トークンはメモリのみに保持（localStorageには保存しない）
       accessToken = response.access_token;
       document.getElementById('auth-status').textContent = '✓ ログイン成功';
       document.getElementById('auth-btn').textContent = '再ログイン';
-      showScreen(2);
-      loadAlbums();
+      document.getElementById('step2-next').disabled = false;
     }
   });
 }
@@ -483,7 +385,6 @@ function startAuth() {
   localStorage.setItem('pf_client_id', clientId);
 
   if (!window.google) {
-    // SDK未ロード: 最大5秒リトライ、それ以上は広告ブロック等を案内
     let retryCount = (startAuth._retryCount || 0) + 1;
     startAuth._retryCount = retryCount;
     if (retryCount <= 5) {
@@ -491,7 +392,7 @@ function startAuth() {
       setTimeout(startAuth, 1000);
     } else {
       startAuth._retryCount = 0;
-      document.getElementById('auth-status').textContent = '⚠️ SDKの読み込みに失敗しました。広告ブロッカーをオフにするか、ページを再読み込みしてください。';
+      document.getElementById('auth-status').textContent = '⚠️ SDKの読み込みに失敗しました。再読み込みしてください。';
     }
     return;
   }
@@ -500,103 +401,21 @@ function startAuth() {
   tokenClient.requestAccessToken();
 }
 
-function handleAuthCallback() {
-  // GSI使用のためImplicit Flowコールバックは不要（互換性のため残す）
-  history.replaceState(null, '', location.pathname);
-}
-
-async function loadAlbums() {
-  document.getElementById('auth-status').textContent = 'アルバムを読み込み中…';
-  try {
-    const res = await fetch('https://photoslibrary.googleapis.com/v1/albums?pageSize=50', {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    const data = await res.json();
-    const albums = data.albums || [];
-
-    const list = document.getElementById('album-list');
-    list.innerHTML = '';
-
-    // 「すべての写真」オプション
-    const allItem = createAlbumItem(null, '📷 すべての写真', '');
-    list.appendChild(allItem);
-
-    albums.forEach(album => {
-      const item = createAlbumItem(album.id, album.title, `${album.mediaItemsCount || '?'}枚`);
-      list.appendChild(item);
-    });
-
-    document.getElementById('album-card').style.display = 'block';
-    document.getElementById('auth-status').textContent = '';
-    selectAlbum(null); // default: all
-  } catch (e) {
-    document.getElementById('auth-status').textContent = 'アルバム読み込みに失敗しました';
-  }
-}
-
-function createAlbumItem(id, title, count) {
-  const div = document.createElement('div');
-  div.style.cssText = 'padding:10px 12px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;transition:background 0.15s;';
-
-  // XSS対策: innerHTML不使用、textContentで安全に挿入
-  const titleSpan = document.createElement('span');
-  titleSpan.style.fontSize = '13px';
-  titleSpan.textContent = title;
-
-  const countSpan = document.createElement('span');
-  countSpan.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.35)';
-  countSpan.textContent = count;
-
-  div.appendChild(titleSpan);
-  div.appendChild(countSpan);
-
-  div.onclick = () => selectAlbum(id, div);
-  div.dataset.albumId = id || 'all';
-  return div;
-}
-
-function selectAlbum(id, el) {
-  selectedAlbumId = id;
-  document.querySelectorAll('#album-list > div').forEach(d => {
-    d.style.background = 'transparent';
-    d.style.border = 'none';
-  });
-  if (el) {
-    el.style.background = 'rgba(232,213,176,0.12)';
-    el.style.border = '1px solid rgba(232,213,176,0.3)';
-    el.style.borderRadius = '8px';
-  } else {
-    const first = document.querySelector('#album-list > div');
-    if (first) { first.style.background = 'rgba(232,213,176,0.12)'; first.style.border = '1px solid rgba(232,213,176,0.3)'; }
-  }
-  localStorage.setItem('pf_album_id', id || '');
-  document.getElementById('step2-next').disabled = false;
-}
-
-// ===== LOAD PHOTOS =====
+// ===== FETCH PHOTOS =====
 async function fetchPhotos() {
-  const pageSize = 100;
   let allPhotos = [];
   let pageToken = '';
 
   try {
     do {
-      let url, options;
-      if (selectedAlbumId) {
-        url = 'https://photoslibrary.googleapis.com/v1/mediaItems:search';
-        options = {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ albumId: selectedAlbumId, pageSize, pageToken: pageToken || undefined })
-        };
-      } else {
-        url = `https://photoslibrary.googleapis.com/v1/mediaItems?pageSize=${pageSize}${pageToken ? '&pageToken=' + pageToken : ''}`;
-        options = { headers: { Authorization: `Bearer ${accessToken}` } };
-      }
+      const query = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
+      let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100`;
+      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
-      const res = await fetch(url, options);
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
 
-      // 401: トークン期限切れ → 再ログインを促す
       if (res.status === 401) {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('setup').style.display = 'flex';
@@ -604,12 +423,16 @@ async function fetchPhotos() {
         document.getElementById('auth-status').textContent = 'セッションが切れました。再ログインしてください。';
         return [];
       }
+      if (res.status === 403) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('setup').style.display = 'flex';
+        setErr(3, 'アクセス権がありません。フォルダIDとアカウントを確認してください。');
+        return [];
+      }
       if (!res.ok) throw new Error('APIエラー: ' + res.status);
 
       const data = await res.json();
-      const items = data.mediaItems || [];
-      // 写真のみ（動画除外）
-      allPhotos = allPhotos.concat(items.filter(i => i.mimeType && i.mimeType.startsWith('image/')));
+      allPhotos = allPhotos.concat(data.files || []);
       pageToken = data.nextPageToken || '';
     } while (pageToken && allPhotos.length < 500);
 
@@ -618,6 +441,10 @@ async function fetchPhotos() {
     console.error('fetchPhotos error:', e);
     return [];
   }
+}
+
+function getImageUrl(fileId) {
+  return `https://lh3.googleusercontent.com/d/${fileId}`;
 }
 
 function shuffle(arr) {
@@ -630,16 +457,15 @@ function shuffle(arr) {
 
 // ===== SLIDESHOW =====
 async function startSlideshow() {
+  folderId = document.getElementById('folder-id').value.trim();
+  if (!folderId) { setErr(3, 'フォルダIDを入力してください'); return; }
+
   intervalSec = parseInt(document.getElementById('interval').value) || 15;
   if (intervalSec < 3) { setErr(3, '最低3秒以上を設定してください'); return; }
-  nightStart = parseInt(document.getElementById('night-start').value);
-  nightEnd = parseInt(document.getElementById('night-end').value);
 
+  localStorage.setItem('pf_folder_id', folderId);
   localStorage.setItem('pf_interval', intervalSec);
-  localStorage.setItem('pf_night_start', nightStart);
-  localStorage.setItem('pf_night_end', nightEnd);
 
-  // show loading
   document.getElementById('loading').style.display = 'flex';
   document.getElementById('setup').style.display = 'none';
 
@@ -647,22 +473,21 @@ async function startSlideshow() {
   if (photos.length === 0) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('setup').style.display = 'flex';
-    setErr(3, '写真が見つかりませんでした。アルバムを確認してください。');
+    if (!document.getElementById('err-3').textContent) {
+      setErr(3, '写真が見つかりませんでした。フォルダIDを確認してください。');
+    }
     return;
   }
 
   photos = shuffle(photos);
   currentIndex = 0;
-
   document.getElementById('loading').style.display = 'none';
 
   buildSlides();
   showSlide(0);
   startTimer();
-  checkNight();
-  setInterval(checkNight, 60000);
 
-  // baseUrlは約60分で失効するため、50分ごとに写真URLを再取得
+  // 50分ごとに写真URLを再取得（Drive APIのトークン期限対策）
   setInterval(async () => {
     const refreshed = await fetchPhotos();
     if (refreshed.length > 0) {
@@ -671,14 +496,12 @@ async function startSlideshow() {
     }
   }, 50 * 60 * 1000);
 
-  // tap to show HUD
   document.body.addEventListener('click', showHud);
 }
 
 function buildSlides() {
   const ss = document.getElementById('slideshow');
   ss.innerHTML = '';
-  // create 3 slide layers (prev, current, next)
   for (let i = 0; i < 3; i++) {
     const d = document.createElement('div');
     d.className = 'slide';
@@ -687,17 +510,13 @@ function buildSlides() {
   }
 }
 
-let activeLayer = 0;
-
 function showSlide(index) {
   const photo = photos[index];
-  const url = photo.baseUrl + '=w2048-h2048';
-
+  const url = getImageUrl(photo.id);
   const nextLayer = (activeLayer + 1) % 3;
   const el = document.getElementById('slide-' + nextLayer);
   el.style.backgroundImage = `url("${url}")`;
 
-  // fade in
   requestAnimationFrame(() => {
     document.getElementById('slide-' + activeLayer).classList.remove('active');
     document.getElementById('slide-' + activeLayer).classList.add('prev');
@@ -705,24 +524,19 @@ function showSlide(index) {
     activeLayer = nextLayer;
   });
 
-  // update HUD
   document.getElementById('hud-counter').textContent = `${index + 1} / ${photos.length}`;
   document.getElementById('hud-interval').textContent = `${intervalSec}秒ごとに切り替え`;
 
-  // preload next
-  const nextIndex = (index + 1) % photos.length;
+  // 次の写真をプリロード
   const img = new Image();
-  img.src = photos[nextIndex].baseUrl + '=w2048-h2048';
+  img.src = getImageUrl(photos[(index + 1) % photos.length].id);
 }
 
 function startTimer() {
   clearInterval(slideTimer);
-  clearInterval(progressTimer);
-
   const bar = document.getElementById('progress');
   bar.style.transition = 'none';
   bar.style.width = '0%';
-
   requestAnimationFrame(() => {
     bar.style.transition = `width ${intervalSec}s linear`;
     bar.style.width = '100%';
@@ -730,10 +544,8 @@ function startTimer() {
 
   slideTimer = setInterval(() => {
     currentIndex = (currentIndex + 1) % photos.length;
-    // reshuffle when cycle completes
     if (currentIndex === 0) photos = shuffle(photos);
     showSlide(currentIndex);
-
     bar.style.transition = 'none';
     bar.style.width = '0%';
     requestAnimationFrame(() => {
@@ -741,42 +553,6 @@ function startTimer() {
       bar.style.width = '100%';
     });
   }, intervalSec * 1000);
-}
-
-// ===== NIGHT MODE =====
-let nightManualOverride = null; // null=自動, true=強制ON, false=強制OFF
-
-function toggleNight() {
-  const overlay = document.getElementById('night-overlay');
-  const isCurrentlyOn = overlay.classList.contains('on');
-
-  if (isCurrentlyOn) {
-    // 現在ONなら強制OFFに
-    nightManualOverride = false;
-    overlay.classList.remove('on');
-    document.getElementById('night-toggle-btn').textContent = '🌙 夜間モード';
-  } else {
-    // 現在OFFなら強制ONに
-    nightManualOverride = true;
-    overlay.classList.add('on');
-    document.getElementById('night-toggle-btn').textContent = '☀️ 夜間モード解除';
-  }
-}
-
-function checkNight() {
-  // 手動オーバーライド中は自動切替しない
-  if (nightManualOverride !== null) return;
-
-  const h = new Date().getHours();
-  const overlay = document.getElementById('night-overlay');
-  let isNight;
-  if (nightStart > nightEnd) {
-    isNight = h >= nightStart || h < nightEnd;
-  } else {
-    isNight = h >= nightStart && h < nightEnd;
-  }
-  overlay.classList.toggle('on', isNight);
-  document.getElementById('night-toggle-btn').textContent = isNight ? '☀️ 夜間モード解除' : '🌙 夜間モード';
 }
 
 // ===== HUD =====
@@ -789,7 +565,6 @@ function showHud() {
 
 function goToSetup() {
   clearInterval(slideTimer);
-  clearInterval(progressTimer);
   document.getElementById('slideshow').innerHTML = '';
   document.getElementById('hud').classList.remove('visible');
   document.getElementById('setup').style.display = 'flex';
@@ -798,49 +573,31 @@ function goToSetup() {
 
 // ===== INIT =====
 function init() {
-  // restore saved values
   const savedClientId = localStorage.getItem('pf_client_id');
-  const savedAlbum = localStorage.getItem('pf_album_id');
-  // セキュリティ向上: アクセストークンはlocalStorageに保存しない（メモリのみ）
-
-  if (savedClientId) document.getElementById('client-id').value = savedClientId;
-  if (document.getElementById('interval')) {
-    document.getElementById('interval').value = localStorage.getItem('pf_interval') || 15;
-    document.getElementById('night-start').value = localStorage.getItem('pf_night_start') || 22;
-    document.getElementById('night-end').value = localStorage.getItem('pf_night_end') || 7;
-  }
-
-  // handle OAuth callback (互換性のため残す)
-  if (location.hash.includes('access_token')) {
-    handleAuthCallback();
-    return;
-  }
-
-  // savedClientIdがあればStep1をスキップしてStep2へ
+  const savedFolderId = localStorage.getItem('pf_folder_id');
   if (savedClientId) {
+    document.getElementById('client-id').value = savedClientId;
     clientId = savedClientId;
-    selectedAlbumId = savedAlbum || null;
-    // トークンはメモリにないのでStep2（再ログイン）から開始
-    showScreen(2);
   }
+  if (savedFolderId) document.getElementById('folder-id').value = savedFolderId;
+  document.getElementById('interval').value = localStorage.getItem('pf_interval') || 15;
+  if (savedClientId) showScreen(2);
 }
 
 window.addEventListener('DOMContentLoaded', init);
 
-// prevent sleep on iOS (keep screen active via audio trick)
-function preventSleep() {
+// スリープ防止
+document.addEventListener('click', () => {
   try {
     const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     gain.gain.value = 0;
-    oscillator.connect(gain);
     gain.connect(ctx.destination);
-    oscillator.start();
+    const osc = ctx.createOscillator();
+    osc.connect(gain);
+    osc.start();
   } catch(e) {}
-}
-
-document.addEventListener('click', preventSleep, { once: true });
+}, { once: true });
 </script>
 </body>
 </html>
