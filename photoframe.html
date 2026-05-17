@@ -208,23 +208,31 @@
     backdrop-filter: blur(10px);
   }
 
- #clock {
+#clock {
     position: fixed;
-    top: 28px; left: 28px; /* 文字が大きくなるので、位置も少し微調整 */
+    top: 32px; left: 32px; /* 画面左上からの余白 */
+    
+    /* ▼ 時計の周りだけの背景設定 ▼ */
+    background: rgba(0, 0, 0, 0.1); /* 半透明の黒背景 */
+    backdrop-filter: blur(10px);     /* 背景の写真をぼかす（すりガラス効果） */
+    -webkit-backdrop-filter: blur(10px); /* Safari/iPad用 */
+    
+    padding: 8px 32px;    /* 背景の広さ（上下8px、左右32px） */
+    border-radius: 24px;  /* 角を丸くする */
+
+    /* ▼ 文字の設定（ご希望の80px） ▼ */
     font-family: 'DM Sans', sans-serif;
-    
-    /* ▼ お好みのサイズを1つ選んでください ▼ */
-    font-size: 100px;            /* 【おすすめ】標準的に見やすい大きさ */
-    /* font-size: 42px;         /* 【大】離れていてもはっきり見える大きさ */
-    /* font-size: clamp(24px, 4vw, 36px); */ /* 画面サイズに合わせて自動可変 */
-    
-    font-weight: 300;           /* すっきり細め（太くしたい場合は 400 に変更） */
-    color: rgba(255,255,255,0.85);
-    letter-spacing: 2px;
+    font-size: 80px; 
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.95);
+    letter-spacing: -1px;
     z-index: 30;
-    text-shadow: 0 2px 8px rgba(0,0,0,0.7); /* 文字が大きくなった分、影も少し強めて視認性アップ */
     pointer-events: none;
+    
+    /* 文字自体の影（少しだけ残しておくとよりクッキリします） */
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
+  
   #progress {
     position: fixed;
     bottom: 0; left: 0;
