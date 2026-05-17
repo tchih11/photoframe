@@ -254,6 +254,8 @@
     transition: opacity 0.5s;
   }
   #photo-date.visible { opacity: 1; }
+
+  #progress {
     position: fixed;
     bottom: 0; left: 0;
     height: 2px;
@@ -262,6 +264,69 @@
     z-index: 40;
     opacity: 0.6;
   }
+
+  /* フォルダリスト */
+  .folder-item {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .folder-item.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+  .folder-item.drag-over {
+    border-color: var(--accent);
+  }
+  .drag-handle {
+    color: rgba(255,255,255,0.3);
+    font-size: 18px;
+    flex-shrink: 0;
+    cursor: grab;
+  }
+  .folder-inputs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .folder-inputs input {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .folder-delete {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.3);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+  }
+  .folder-delete:hover { color: #ff6b6b; }
+  .add-folder-btn {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed rgba(255,255,255,0.2);
+    border-radius: 10px;
+    color: rgba(255,255,255,0.4);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 4px;
+  }
+  .add-folder-btn:hover { background: rgba(255,255,255,0.08); }
 
   #loading {
     position: fixed; inset: 0;
@@ -371,6 +436,10 @@
         <input type="text" id="folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuV">
       </div>
       <div class="field">
+        <label>年あたりの表示枚数</label>
+        <input type="number" id="photos-per-year" value="100" min="1" max="500">
+      </div>
+      <div class="field">
         <label>スライド間隔（秒）</label>
         <input type="number" id="interval" value="15" min="3" max="3600">
       </div>
@@ -403,6 +472,7 @@ let currentIndex = 0;
 let slideTimer = null;
 let intervalSec = 15;
 let folderId = '';
+let photosPerYear = 100;
 let nightStart = 22;
 let nightEnd = 7;
 let nightManualOverride = null;
@@ -432,6 +502,91 @@ function nextStep(from) {
 
 function prevStep(from) { showScreen(from - 1); }
 function setErr(n, msg) { document.getElementById('err-' + n).textContent = msg; }
+
+// ===== FOLDER LIST UI =====
+let dragSrcIndex = null;
+
+function renderFolderList() {
+  const list = document.getElementById('folder-list');
+  list.innerHTML = '';
+  folders.forEach((folder, i) => {
+    const item = document.createElement('div');
+    item.className = 'folder-item';
+    item.draggable = true;
+    item.dataset.index = i;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '☰';
+
+    const inputs = document.createElement('div');
+    inputs.className = 'folder-inputs';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '表示名（例：2022年）';
+    nameInput.value = folder.name;
+    nameInput.oninput = () => { folders[i].name = nameInput.value; saveFolders(); };
+
+    const idInput = document.createElement('input');
+    idInput.type = 'text';
+    idInput.placeholder = 'フォルダID';
+    idInput.value = folder.id;
+    idInput.oninput = () => { folders[i].id = idInput.value; saveFolders(); };
+
+    inputs.appendChild(nameInput);
+    inputs.appendChild(idInput);
+
+    const del = document.createElement('button');
+    del.className = 'folder-delete';
+    del.textContent = '✕';
+    del.onclick = () => { folders.splice(i, 1); saveFolders(); renderFolderList(); };
+
+    item.appendChild(handle);
+    item.appendChild(inputs);
+    item.appendChild(del);
+
+    // ドラッグ並び替え
+    item.addEventListener('dragstart', () => {
+      dragSrcIndex = i;
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if (dragSrcIndex === null || dragSrcIndex === i) return;
+      const moved = folders.splice(dragSrcIndex, 1)[0];
+      folders.splice(i, 0, moved);
+      dragSrcIndex = null;
+      saveFolders();
+      renderFolderList();
+    });
+
+    list.appendChild(item);
+  });
+}
+
+function addFolderItem() {
+  folders.push({ name: '', id: '' });
+  renderFolderList();
+}
+
+function saveFolders() {
+  localStorage.setItem('pf_folders', JSON.stringify(folders));
+}
+
+function loadFolders() {
+  try {
+    const saved = localStorage.getItem('pf_folders');
+    folders = saved ? JSON.parse(saved) : [{ name: '', id: '' }];
+  } catch(e) {
+    folders = [{ name: '', id: '' }];
+  }
+  renderFolderList();
+}
 
 // ===== AUTH =====
 let tokenClient = null;
@@ -535,12 +690,14 @@ async function startSlideshow() {
   folderId = document.getElementById('folder-id').value.trim();
   if (!folderId) { setErr(3, 'フォルダIDを入力してください'); return; }
 
+  photosPerYear = parseInt(document.getElementById('photos-per-year').value) || 100;
   intervalSec = parseInt(document.getElementById('interval').value) || 15;
   if (intervalSec < 3) { setErr(3, '最低3秒以上を設定してください'); return; }
   nightStart = parseInt(document.getElementById('night-start').value);
   nightEnd = parseInt(document.getElementById('night-end').value);
 
   localStorage.setItem('pf_folder_id', folderId);
+  localStorage.setItem('pf_photos_per_year', photosPerYear);
   localStorage.setItem('pf_interval', intervalSec);
   localStorage.setItem('pf_night_start', nightStart);
   localStorage.setItem('pf_night_end', nightEnd);
@@ -717,6 +874,7 @@ function init() {
     clientId = savedClientId;
   }
   if (savedFolderId) document.getElementById('folder-id').value = savedFolderId;
+  document.getElementById('photos-per-year').value = localStorage.getItem('pf_photos_per_year') || 100;
   document.getElementById('interval').value = localStorage.getItem('pf_interval') || 15;
   document.getElementById('night-start').value = localStorage.getItem('pf_night_start') ?? 22;
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
