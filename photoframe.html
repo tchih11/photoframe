@@ -239,7 +239,21 @@
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
-  #progress {
+  #photo-date {
+    position: fixed;
+    bottom: 36px; left: 32px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 1px;
+    z-index: 30;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  #photo-date.visible { opacity: 1; }
     position: fixed;
     bottom: 0; left: 0;
     height: 2px;
@@ -274,6 +288,7 @@
 
 <div id="progress"></div>
 <div id="clock"></div>
+<div id="photo-date"></div>
 
 <div id="night-overlay" onclick="showHud()"></div>
 
@@ -469,7 +484,7 @@ async function fetchPhotos() {
   try {
     do {
       const query = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
-      let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100`;
+      let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,mimeType,imageMediaMetadata)&pageSize=100`;
       if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
       const res = await fetch(url, {
@@ -609,6 +624,20 @@ function showSlide(index) {
 
   document.getElementById('hud-counter').textContent = `${index + 1} / ${photos.length}`;
   document.getElementById('hud-interval').textContent = `${intervalSec}秒ごとに切り替え`;
+
+  // 撮影日時の表示
+  const dateEl = document.getElementById('photo-date');
+  const exifTime = photo.imageMediaMetadata && photo.imageMediaMetadata.time;
+  if (exifTime) {
+    // EXIF形式: "2024:03:15 14:30:00" → 整形
+    const parts = exifTime.split(' ');
+    const dateParts = parts[0].split(':');
+    const formatted = `${dateParts[0]}年${parseInt(dateParts[1])}月${parseInt(dateParts[2])}日`;
+    dateEl.textContent = formatted;
+    dateEl.classList.add('visible');
+  } else {
+    dateEl.classList.remove('visible');
+  }
 
   const preload = new Image();
   preload.src = getImageUrl(photos[(index + 1) % photos.length].id);
