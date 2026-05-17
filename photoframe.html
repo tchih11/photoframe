@@ -213,6 +213,39 @@
   }
   #hud.visible { opacity: 1; pointer-events: all; }
 
+  /* アルバム選択ポップアップ */
+  #album-popup {
+    position: fixed;
+    bottom: 100px; right: 24px;
+    background: rgba(20,20,20,0.95);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 8px;
+    z-index: 70;
+    min-width: 160px;
+    backdrop-filter: blur(20px);
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+  }
+  #album-popup.visible { display: flex; }
+
+  .album-popup-item {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .album-popup-item:hover { background: rgba(255,255,255,0.1); }
+  .album-popup-item.current {
+    color: var(--accent);
+    background: rgba(232,213,176,0.1);
+  }
+
   .hud-info { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.8; }
   .hud-info strong { color: #fff; font-weight: 400; font-size: 14px; display: block; }
 
@@ -371,12 +404,15 @@
 
 <div id="slideshow"></div>
 
+<div id="album-popup"></div>
+
 <div id="hud">
   <div class="hud-info">
     <strong id="hud-counter">–</strong>
     <span id="hud-interval">–秒ごとに切り替え</span>
   </div>
   <div style="display:flex;gap:8px;">
+    <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
@@ -388,7 +424,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.0.0</div>
+    <div class="version">v1.1.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -410,7 +446,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.0.0</div>
+    <div class="version">v1.1.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -433,7 +469,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.0.0</div>
+    <div class="version">v1.1.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -892,6 +928,47 @@ function startTimer() {
     });
   }, intervalSec * 1000);
 }
+
+// ===== ALBUM POPUP =====
+function toggleAlbumPopup() {
+  const popup = document.getElementById('album-popup');
+  if (popup.classList.contains('visible')) {
+    popup.classList.remove('visible');
+    return;
+  }
+
+  // ポップアップの中身を構築
+  popup.innerHTML = '';
+  yearGroups.forEach((group, i) => {
+    const item = document.createElement('div');
+    item.className = 'album-popup-item' + (i === currentYearIndex ? ' current' : '');
+    item.textContent = group.label || '　';
+    item.onclick = () => {
+      selectAlbum(i);
+      popup.classList.remove('visible');
+    };
+    popup.appendChild(item);
+  });
+
+  popup.classList.add('visible');
+}
+
+function selectAlbum(index) {
+  currentYearIndex = index;
+  currentYearCount = 0;
+  yearGroups[currentYearIndex].photos = shuffle(yearGroups[currentYearIndex].photos);
+  const photo = getNextPhoto();
+  if (photo) showSlide(photo);
+}
+
+// ポップアップ外タップで閉じる
+document.addEventListener('click', (e) => {
+  const popup = document.getElementById('album-popup');
+  if (!popup) return;
+  if (!popup.contains(e.target) && !e.target.closest('.hud-btn')) {
+    popup.classList.remove('visible');
+  }
+});
 
 // ===== NIGHT MODE =====
 function toggleNight() {
