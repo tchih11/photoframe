@@ -683,45 +683,101 @@ function startAuth() {
 }
 
 // ===== FETCH PHOTOS =====
-async function fetchPhotos() {
-  let allPhotos = [];
-  let pageToken = '';
+let isFetchingBackground = false;
+
+async function fetchPhotosBatch(pageToken = '') {
+  const query = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
+  let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,mimeType,imageMediaMetadata)&pageSize=100`;
+  if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+
+  if (res.status === 401) {
+    document.getElementById('setup').style.display = 'flex';
+    showScreen(2);
+    document.getElementById('auth-status').textContent = 'セッションが切れました。再ログインしてください。';
+    return null;
+  }
+  if (res.status === 403) {
+    document.getElementById('setup').style.display = 'flex';
+    setErr(3, 'アクセス権がありません。フォルダIDとアカウントを確認してください。');
+    return null;
+  }
+  if (!res.ok) throw new Error('APIエラー: ' + res.status);
+
+  return await res.json();
+}
+
+// 初回：最初の100件だけ取得
+async function fetchInitialPhotos() {
+  try {
+    const data = await fetchPhotosBatch();
+    if (!data) return { photos: [], nextPageToken: '' };
+    return {
+      photos: data.files || [],
+      nextPageToken: data.nextPageToken || ''
+    };
+  } catch(e) {
+    console.error('fetchInitialPhotos error:', e);
+    return { photos: [], nextPageToken: '' };
+  }
+}
+
+// バックグラウンド：残り全件を取得してyearGroupsにマージ
+async function fetchRemainingPhotos(pageToken) {
+  if (!pageToken || isFetchingBackground) return;
+  isFetchingBackground = true;
+  let totalFetched = 100; // 初回分
 
   try {
-    do {
-      const query = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
-      let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=nextPageToken,files(id,name,mimeType,imageMediaMetadata)&pageSize=100`;
-      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+    while (pageToken) {
+      await new Promise(r => setTimeout(r, 300)); // API負荷軽減
+      const data = await fetchPhotosBatch(pageToken);
+      if (!data) break;
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
+      const newPhotos = data.files || [];
+      totalFetched += newPhotos.length;
 
-      if (res.status === 401) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('setup').style.display = 'flex';
-        showScreen(2);
-        document.getElementById('auth-status').textContent = 'セッションが切れました。再ログインしてください。';
-        return [];
-      }
-      if (res.status === 403) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('setup').style.display = 'flex';
-        setErr(3, 'アクセス権がありません。フォルダIDとアカウントを確認してください。');
-        return [];
-      }
-      if (!res.ok) throw new Error('APIエラー: ' + res.status);
+      // yearGroupsにマージ
+      mergePhotosIntoGroups(newPhotos);
 
-      const data = await res.json();
-      allPhotos = allPhotos.concat(data.files || []);
       pageToken = data.nextPageToken || '';
-    } while (pageToken && allPhotos.length < 500);
-
-    return allPhotos;
-  } catch (e) {
-    console.error('fetchPhotos error:', e);
-    return [];
+    }
+  } catch(e) {
+    console.error('fetchRemainingPhotos error:', e);
+  } finally {
+    isFetchingBackground = false;
   }
+}
+
+// 新しく取得した写真をyearGroupsにマージ
+function mergePhotosIntoGroups(newPhotos) {
+  newPhotos.forEach(photo => {
+    const exifTime = photo.imageMediaMetadata && photo.imageMediaMetadata.time;
+    const year = exifTime ? exifTime.split(':')[0] : '__unknown__';
+
+    const existing = yearGroups.find(g => g.year === year);
+    if (existing) {
+      existing.photos.push(photo);
+    } else {
+      // 新しい年グループを追加して年順に並び替え
+      yearGroups.push({
+        year,
+        label: year === '__unknown__' ? '　' : `${year}年`,
+        photos: [photo]
+      });
+      yearGroups.sort((a, b) => {
+        if (a.year === '__unknown__') return 1;
+        if (b.year === '__unknown__') return -1;
+        return a.year.localeCompare(b.year);
+      });
+      // currentYearIndexを維持
+      currentYearIndex = yearGroups.findIndex(g => g.year === yearGroups[currentYearIndex]?.year);
+      if (currentYearIndex < 0) currentYearIndex = 0;
+    }
+  });
 }
 
 function getImageUrl(fileId) {
@@ -800,10 +856,12 @@ async function startSlideshow() {
   localStorage.setItem('pf_night_end', nightEnd);
 
   document.getElementById('loading').style.display = 'flex';
+  document.getElementById('loading').querySelector('.loading-text').textContent = '写真を読み込んでいます';
   document.getElementById('setup').style.display = 'none';
 
-  const allPhotos = await fetchPhotos();
-  if (allPhotos.length === 0) {
+  // 初回100件取得
+  const { photos: initialPhotos, nextPageToken } = await fetchInitialPhotos();
+  if (initialPhotos.length === 0) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('setup').style.display = 'flex';
     if (!document.getElementById('err-3').textContent) {
@@ -812,14 +870,10 @@ async function startSlideshow() {
     return;
   }
 
-  // 年グループ分け
-  yearGroups = groupByYear(allPhotos);
+  // 初回分でグループ分けしてスライドショー開始
+  yearGroups = groupByYear(initialPhotos);
   currentYearIndex = 0;
   currentYearCount = 0;
-
-  // photosは後方互換のため先頭グループで初期化
-  photos = yearGroups[0].photos;
-  currentIndex = 0;
   document.getElementById('loading').style.display = 'none';
 
   buildSlides();
@@ -829,11 +883,15 @@ async function startSlideshow() {
   checkNight();
   setInterval(checkNight, 60000);
 
-  // 50分ごとに写真を再取得（トークン期限対策）
+  // バックグラウンドで残りを取得
+  fetchRemainingPhotos(nextPageToken);
+
+  // 50分ごとに再取得（トークン期限対策）
   setInterval(async () => {
-    const refreshed = await fetchPhotos();
+    const { photos: refreshed, nextPageToken: newToken } = await fetchInitialPhotos();
     if (refreshed.length > 0) {
       yearGroups = groupByYear(refreshed);
+      fetchRemainingPhotos(newToken);
     }
   }, 50 * 60 * 1000);
 
