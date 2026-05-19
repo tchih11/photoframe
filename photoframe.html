@@ -283,7 +283,7 @@
     position: fixed;
     bottom: 36px; left: 32px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 18px;
+    font-size: 36px;
     font-weight: 300;
     color: rgba(255,255,255,0.75);
     letter-spacing: 1px;
@@ -292,6 +292,7 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.5s;
+    line-height: 1.4;
   }
   #photo-date.visible { opacity: 1; }
 
@@ -499,6 +500,11 @@
         </div>
       </div>
     </div>
+    <div class="card">
+      <div class="card-title">子どもの情報（任意）</div>
+      <div id="children-list"></div>
+      <button class="add-folder-btn" id="add-child-btn" onclick="addChild()">＋ 子どもを追加（最大3人）</button>
+    </div>
     <button class="btn" onclick="startSlideshow()">フォトフレームを開始</button>
     <button class="btn btn-ghost" onclick="prevStep(3)">戻る</button>
     <div class="error-msg" id="err-3"></div>
@@ -535,6 +541,85 @@ function showScreen(n) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById('screen-' + n);
   if (target) target.classList.add('active');
+}
+
+// ===== CHILDREN =====
+let children = []; // [{name, birthday}, ...]
+
+function renderChildren() {
+  const list = document.getElementById('children-list');
+  list.innerHTML = '';
+  children.forEach((child, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:10px;';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '名前';
+    nameInput.value = child.name;
+    nameInput.style.flex = '1';
+    nameInput.oninput = () => { children[i].name = nameInput.value; saveChildren(); };
+
+    const bdInput = document.createElement('input');
+    bdInput.type = 'text';
+    bdInput.placeholder = '2020/04/01';
+    bdInput.value = child.birthday;
+    bdInput.style.flex = '2';
+    bdInput.oninput = () => { children[i].birthday = bdInput.value; saveChildren(); };
+
+    const del = document.createElement('button');
+    del.className = 'folder-delete';
+    del.textContent = '✕';
+    del.onclick = () => {
+      children.splice(i, 1);
+      saveChildren();
+      renderChildren();
+    };
+
+    row.appendChild(nameInput);
+    row.appendChild(bdInput);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+  const btn = document.getElementById('add-child-btn');
+  if (btn) btn.style.display = children.length >= 3 ? 'none' : 'block';
+}
+
+function addChild() {
+  if (children.length >= 3) return;
+  children.push({ name: '', birthday: '' });
+  saveChildren();
+  renderChildren();
+}
+
+function saveChildren() {
+  localStorage.setItem('pf_children', JSON.stringify(children));
+}
+
+function loadChildren() {
+  try {
+    const saved = localStorage.getItem('pf_children');
+    children = saved ? JSON.parse(saved) : [];
+  } catch(e) {
+    children = [];
+  }
+  renderChildren();
+}
+
+function calcAge(birthdayStr, photoDateStr) {
+  try {
+    const [yy, mm, dd] = birthdayStr.split('/').map(Number);
+    const parts = photoDateStr.split(' ')[0].split(':').map(Number);
+    const [py, pm, pd] = parts;
+    let years = py - yy;
+    let months = pm - mm;
+    if (months < 0) { years--; months += 12; }
+    if (pd < dd) { months--; if (months < 0) { years--; months += 12; } }
+    if (years < 0) return null;
+    return `${years}歳${months}か月`;
+  } catch(e) {
+    return null;
+  }
 }
 
 function nextStep(from) {
@@ -956,14 +1041,25 @@ function showSlide(photo) {
     `${group.label}　${currentYearCount} / ${total}`;
   document.getElementById('hud-interval').textContent = `${intervalSec}秒ごとに切り替え`;
 
-  // 撮影日時の表示
+  // 撮影日時と子どもの年齢の表示
   const dateEl = document.getElementById('photo-date');
   const exifTime = photo.imageMediaMetadata && photo.imageMediaMetadata.time;
   if (exifTime) {
-    const parts = exifTime.split(' ');
-    const dateParts = parts[0].split(':');
-    const formatted = `${dateParts[0]}年${parseInt(dateParts[1])}月${parseInt(dateParts[2])}日`;
-    dateEl.textContent = formatted;
+    const parts = exifTime.split(' ')[0].split(':');
+    const formatted = `${parts[0]}年${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+
+    // 子どもの年齢を計算
+    const ageTexts = children
+      .filter(c => c.name && c.birthday)
+      .map(c => {
+        const age = calcAge(c.birthday, exifTime);
+        return age ? `${c.name} ${age}` : null;
+      })
+      .filter(Boolean);
+
+    const ageStr = ageTexts.length > 0 ? '\n' + ageTexts.join('　') : '';
+    dateEl.textContent = formatted + ageStr;
+    dateEl.style.whiteSpace = 'pre';
     dateEl.classList.add('visible');
   } else {
     dateEl.classList.remove('visible');
@@ -1093,6 +1189,7 @@ function init() {
   document.getElementById('interval').value = localStorage.getItem('pf_interval') || 15;
   document.getElementById('night-start').value = localStorage.getItem('pf_night_start') ?? 22;
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
+  loadChildren();
   if (savedClientId) showScreen(2);
 }
 
