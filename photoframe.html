@@ -1010,6 +1010,7 @@ async function startSlideshow() {
 
   buildSlides();
   const firstPhoto = getNextPhoto();
+  recordHistory(firstPhoto);
   showSlide(firstPhoto);
   startTimer();
   checkNight();
@@ -1028,6 +1029,7 @@ async function startSlideshow() {
   }, 50 * 60 * 1000);
 
   document.body.addEventListener('click', showHud);
+  initSwipe();
 }
 
 function buildSlides() {
@@ -1120,7 +1122,10 @@ function startTimer() {
 
   slideTimer = setInterval(() => {
     const photo = getNextPhoto();
-    if (photo) showSlide(photo);
+    if (photo) {
+      recordHistory(photo);
+      showSlide(photo);
+    }
     bar.style.transition = 'none';
     bar.style.width = '0%';
     requestAnimationFrame(() => {
@@ -1198,6 +1203,82 @@ function checkNight() {
 }
 
 // ===== HUD =====
+// ===== SWIPE =====
+const SWIPE_THRESHOLD = 50; // px以上でスワイプ判定
+const photoHistory = []; // 表示した写真の履歴
+const MAX_HISTORY = 50; // 最大履歴件数
+
+function recordHistory(photo) {
+  photoHistory.push({
+    photo,
+    yearIndex: currentYearIndex,
+    yearCount: currentYearCount
+  });
+  if (photoHistory.length > MAX_HISTORY) photoHistory.shift();
+}
+
+function goNext() {
+  const photo = getNextPhoto();
+  if (photo) {
+    recordHistory(photo);
+    showSlide(photo);
+    resetProgressBar();
+  }
+}
+
+function goPrev() {
+  if (photoHistory.length < 2) return;
+  // 現在の写真を除いた1つ前
+  photoHistory.pop();
+  const prev = photoHistory[photoHistory.length - 1];
+  if (!prev) return;
+  showSlide(prev.photo);
+  resetProgressBar();
+}
+
+function resetProgressBar() {
+  const bar = document.getElementById('progress');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  clearInterval(slideTimer);
+  startTimer();
+}
+
+function initSwipe() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isSwiping = false;
+
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isSwiping = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    const dx = Math.abs(e.touches[0].clientX - touchStartX);
+    const dy = Math.abs(e.touches[0].clientY - touchStartY);
+    if (dx > dy && dx > 10) isSwiping = true;
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!isSwiping) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+
+    // 横スワイプが縦より大きく、閾値を超えた場合のみ判定
+    if (Math.abs(dx) < SWIPE_THRESHOLD || dy > Math.abs(dx)) return;
+
+    if (dx < 0) {
+      // 左スワイプ → 次へ
+      goNext();
+    } else {
+      // 右スワイプ → 前へ
+      goPrev();
+    }
+  }, { passive: true });
+}
+
 function showHud() {
   const hud = document.getElementById('hud');
   hud.classList.add('visible');
