@@ -414,6 +414,7 @@
   </div>
   <div style="display:flex;gap:8px;">
     <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
+    <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortMode()">🔀 ランダム</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
@@ -533,6 +534,7 @@ let currentYearCount = 0; // 現在の年グループで表示した枚数
 let nightStart = 22;
 let nightEnd = 7;
 let nightManualOverride = null;
+let sortMode = 'random'; // 'random' or 'date'
 let hudTimeout = null;
 let activeLayer = 0;
 
@@ -915,22 +917,57 @@ function groupByYear(allPhotos) {
 }
 
 // 現在の年グループから次の写真を取得
+// 日付文字列でソート（EXIF形式 "2024:03:15 14:30:00"）
+function sortByDate(photos) {
+  return [...photos].sort((a, b) => {
+    const ta = a.imageMediaMetadata?.time || '';
+    const tb = b.imageMediaMetadata?.time || '';
+    return ta.localeCompare(tb);
+  });
+}
+
+// 現在のグループにソートモードを適用（100枚をランダム選出→必要に応じて日付順）
+function applyCurrentGroup() {
+  const group = yearGroups[currentYearIndex];
+  // まずシャッフルして100枚を選出
+  const pool = shuffle([...group.photos]).slice(0, photosPerYear);
+  // 日付順モードなら選出した100枚をソート
+  group._display = sortMode === 'date' ? sortByDate(pool) : pool;
+}
+
 function getNextPhoto() {
   if (yearGroups.length === 0) return null;
 
   const group = yearGroups[currentYearIndex];
 
+  // displayリストがなければ初期化
+  if (!group._display) applyCurrentGroup();
+
   // 現在グループの表示上限に達したら次の年へ
-  if (currentYearCount >= photosPerYear || currentYearCount >= group.photos.length) {
+  if (currentYearCount >= group._display.length) {
     currentYearIndex = (currentYearIndex + 1) % yearGroups.length;
     currentYearCount = 0;
-    // 次のグループをシャッフル
-    yearGroups[currentYearIndex].photos = shuffle(yearGroups[currentYearIndex].photos);
+    applyCurrentGroup();
   }
 
-  const photo = yearGroups[currentYearIndex].photos[currentYearCount % yearGroups[currentYearIndex].photos.length];
+  const photo = yearGroups[currentYearIndex]._display[currentYearCount];
   currentYearCount++;
   return photo;
+}
+
+// 表示順の切り替え
+function toggleSortMode() {
+  sortMode = sortMode === 'random' ? 'date' : 'random';
+  localStorage.setItem('pf_sort_mode', sortMode);
+
+  const btn = document.getElementById('sort-toggle-btn');
+  btn.textContent = sortMode === 'random' ? '🔀 ランダム' : '📅 日付順';
+
+  // 現在の年度で再選出・再ソート
+  currentYearCount = 0;
+  applyCurrentGroup();
+  const photo = getNextPhoto();
+  if (photo) showSlide(photo);
 }
 
 // ===== SLIDESHOW =====
@@ -1120,7 +1157,7 @@ function toggleAlbumPopup() {
 function selectAlbum(index) {
   currentYearIndex = index;
   currentYearCount = 0;
-  yearGroups[currentYearIndex].photos = shuffle(yearGroups[currentYearIndex].photos);
+  applyCurrentGroup();
   const photo = getNextPhoto();
   if (photo) showSlide(photo);
 }
@@ -1190,6 +1227,7 @@ function init() {
   document.getElementById('night-start').value = localStorage.getItem('pf_night_start') ?? 22;
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
   loadChildren();
+  sortMode = localStorage.getItem('pf_sort_mode') || 'random';
   if (savedClientId) showScreen(2);
 }
 
