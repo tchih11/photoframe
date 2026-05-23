@@ -228,7 +228,21 @@
     flex-direction: column;
     gap: 2px;
   }
-  #album-popup.visible { display: flex; }
+  #sort-popup {
+    position: fixed;
+    bottom: 100px; right: 180px;
+    background: rgba(20,20,20,0.95);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 8px;
+    z-index: 70;
+    min-width: 140px;
+    backdrop-filter: blur(20px);
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+  }
+  #sort-popup.visible { display: flex; }
 
   .album-popup-item {
     padding: 10px 16px;
@@ -406,6 +420,7 @@
 <div id="slideshow"></div>
 
 <div id="album-popup"></div>
+<div id="sort-popup"></div>
 
 <div id="hud">
   <div class="hud-info">
@@ -414,7 +429,7 @@
   </div>
   <div style="display:flex;gap:8px;">
     <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
-    <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortMode()">🔀 ランダム</button>
+    <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortPopup()">🔀 ランダム</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
@@ -521,6 +536,7 @@
 let clientId = '';
 let accessToken = '';
 let photos = [];
+let folders = []; // フォルダリスト（後方互換のため残す）
 let currentIndex = 0;
 let slideTimer = null;
 let intervalSec = 15;
@@ -535,6 +551,8 @@ let nightStart = 22;
 let nightEnd = 7;
 let nightManualOverride = null;
 let sortMode = 'random'; // 'random' or 'date'
+let allPhotosPool = []; // ランダムモード用：全写真フラット配列
+let randomPoolIndex = 0; // ランダムモードの現在位置
 let hudTimeout = null;
 let activeLayer = 0;
 
@@ -823,7 +841,7 @@ async function fetchRemainingPhotos(pageToken) {
       await new Promise(r => setTimeout(r, 300)); // API負荷軽減
       try {
         const data = await fetchPhotosBatch(pageToken);
-        if (!data) break;
+        if (!data || !data.files) break;
 
         const newPhotos = data.files || [];
         mergePhotosIntoGroups(newPhotos);
@@ -936,38 +954,81 @@ function applyCurrentGroup() {
 }
 
 function getNextPhoto() {
+  if (sortMode === 'random') {
+    // 全写真フラットシャッフルモード
+    if (allPhotosPool.length === 0) return null;
+    if (randomPoolIndex >= allPhotosPool.length) {
+      // 一周したら再シャッフル
+      allPhotosPool = shuffle(allPhotosPool);
+      randomPoolIndex = 0;
+    }
+    return allPhotosPool[randomPoolIndex++];
+  }
+
+  // 日付順モード：年度ごとに表示
   if (yearGroups.length === 0) return null;
-
   const group = yearGroups[currentYearIndex];
-
-  // displayリストがなければ初期化
   if (!group._display) applyCurrentGroup();
-
-  // 現在グループの表示上限に達したら次の年へ
   if (currentYearCount >= group._display.length) {
     currentYearIndex = (currentYearIndex + 1) % yearGroups.length;
     currentYearCount = 0;
     applyCurrentGroup();
   }
-
   const photo = yearGroups[currentYearIndex]._display[currentYearCount];
   currentYearCount++;
   return photo;
 }
 
-// 表示順の切り替え
-function toggleSortMode() {
-  sortMode = sortMode === 'random' ? 'date' : 'random';
-  localStorage.setItem('pf_sort_mode', sortMode);
+function toggleSortPopup() {
+  const popup = document.getElementById('sort-popup');
+  const albumPopup = document.getElementById('album-popup');
+  albumPopup.classList.remove('visible');
+  popup.classList.toggle('visible');
+}
 
+function updateSortUI() {
   const btn = document.getElementById('sort-toggle-btn');
-  btn.textContent = sortMode === 'random' ? '🔀 ランダム' : '📅 日付順';
+  if (btn) btn.textContent = sortMode === 'random' ? '🔀 ランダム' : '📅 日付順';
+  const rItem = document.getElementById('sort-random-item');
+  const dItem = document.getElementById('sort-date-item');
+  if (rItem) rItem.className = 'album-popup-item' + (sortMode === 'random' ? ' current' : '');
+  if (dItem) dItem.className = 'album-popup-item' + (sortMode === 'date' ? ' current' : '');
+}
 
-  // 現在の年度で再選出・再ソート
-  currentYearCount = 0;
-  applyCurrentGroup();
+function selectSortMode(mode) {
+  if (sortMode === mode) {
+    document.getElementById('sort-popup').classList.remove('visible');
+    return;
+  }
+  sortMode = mode;
+  localStorage.setItem('pf_sort_mode', sortMode);
+  document.getElementById('sort-popup').classList.remove('visible');
+  updateSortUI();
+
+  if (sortMode === 'random') {
+    buildAllPhotosPool();
+    randomPoolIndex = 0;
+  } else {
+    currentYearCount = 0;
+    applyCurrentGroup();
+  }
+
   const photo = getNextPhoto();
-  if (photo) showSlide(photo);
+  if (photo) {
+    recordHistory(photo);
+    showSlide(photo);
+    resetProgressBar();
+  }
+}
+
+function buildAllPhotosPool() {
+  allPhotosPool = shuffle(yearGroups.flatMap(g => g.photos));
+  randomPoolIndex = 0;
+}
+
+function updateSortBtn() {
+  const btn = document.getElementById('sort-toggle-btn');
+  if (btn) btn.textContent = sortMode === 'random' ? '🔀 ランダム' : '📅 日付順';
 }
 
 // ===== SLIDESHOW =====
@@ -1002,10 +1063,14 @@ async function startSlideshow() {
     return;
   }
 
-  // 初回分でグループ分けしてスライドショー開始
+  // 年グループ分け
   yearGroups = groupByYear(initialPhotos);
   currentYearIndex = 0;
   currentYearCount = 0;
+
+  // ランダムモードの場合は全写真プールを構築
+  if (sortMode === 'random') buildAllPhotosPool();
+
   document.getElementById('loading').style.display = 'none';
 
   buildSlides();
@@ -1024,6 +1089,7 @@ async function startSlideshow() {
     const { photos: refreshed, nextPageToken: newToken } = await fetchInitialPhotos();
     if (refreshed.length > 0) {
       yearGroups = groupByYear(refreshed);
+      if (sortMode === 'random') buildAllPhotosPool();
       fetchRemainingPhotos(newToken);
     }
   }, 50 * 60 * 1000);
@@ -1137,6 +1203,7 @@ function startTimer() {
 
 // ===== ALBUM POPUP =====
 function toggleAlbumPopup() {
+  if (sortMode === 'random') return; // ランダムモード中は無効
   const popup = document.getElementById('album-popup');
   if (popup.classList.contains('visible')) {
     popup.classList.remove('visible');
@@ -1169,10 +1236,11 @@ function selectAlbum(index) {
 
 // ポップアップ外タップで閉じる
 document.addEventListener('click', (e) => {
-  const popup = document.getElementById('album-popup');
-  if (!popup) return;
-  if (!popup.contains(e.target) && !e.target.closest('.hud-btn')) {
-    popup.classList.remove('visible');
+  const albumPopup = document.getElementById('album-popup');
+  const sortPopup = document.getElementById('sort-popup');
+  if (!e.target.closest('.hud-btn')) {
+    if (albumPopup) albumPopup.classList.remove('visible');
+    if (sortPopup) sortPopup.classList.remove('visible');
   }
 });
 
@@ -1309,6 +1377,7 @@ function init() {
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
+  updateSortBtn();
   if (savedClientId) showScreen(2);
 }
 
