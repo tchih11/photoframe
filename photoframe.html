@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen">
 <meta name="apple-mobile-web-app-title" content="PhotoFrame">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com https://lh3.googleusercontent.com data:; connect-src 'self' https://www.googleapis.com https://accounts.google.com;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' https://*.googleusercontent.com https://*.google.com https://lh3.googleusercontent.com data: blob:; connect-src 'self' https://www.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com;">
 <title>PhotoFrame</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400&display=swap');
@@ -426,7 +426,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.1.0</div>
+    <div class="version">v1.6.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -448,7 +448,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.1.0</div>
+    <div class="version">v1.6.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -471,7 +471,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.1.0</div>
+    <div class="version">v1.6.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -502,6 +502,17 @@
       </div>
     </div>
     <div class="card">
+      <div class="card-title">画像の取得（Apps Script）</div>
+      <div class="field">
+        <label>ウェブアプリURL</label>
+        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+      <div class="field">
+        <label>合言葉（SECRET）</label>
+        <input type="password" id="gas-key" placeholder="Code.gs の SECRET と同じ値">
+      </div>
+    </div>
+    <div class="card">
       <div class="card-title">子どもの情報（任意）</div>
       <div id="children-list"></div>
       <button class="add-folder-btn" id="add-child-btn" onclick="addChild()">＋ 子どもを追加（最大3人）</button>
@@ -526,6 +537,8 @@ let slideTimer = null;
 let intervalSec = 15;
 let folderId = '';
 let photosPerYear = 100;
+let gasUrl = '';
+let gasKey = '';
 
 // 年グループ管理
 let yearGroups = [];      // [{year, photos: [...]}, ...]
@@ -881,6 +894,50 @@ function getImageUrl(fileId) {
   return `https://lh3.googleusercontent.com/d/${fileId}`;
 }
 
+// ===== IMAGE LOADING =====
+// Apps Script経由で画像を取得（SafariのGoogleログイン状態に依存しない）
+// 未設定の場合は従来どおり lh3 のURLを直接使う
+const IMAGE_SIZE = 2048;
+const IMAGE_CACHE_MAX = 8;
+const imageCache = new Map(); // fileId → Promise<表示用URL>
+let slideSeq = 0;
+let slideRendered = false;
+
+function loadImageUrl(fileId) {
+  if (!gasUrl) return Promise.resolve(getImageUrl(fileId));
+  if (imageCache.has(fileId)) return imageCache.get(fileId);
+
+  const url = `${gasUrl}?key=${encodeURIComponent(gasKey)}&id=${encodeURIComponent(fileId)}&size=${IMAGE_SIZE}`;
+  const p = fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      const bytes = Uint8Array.from(atob(data.image), c => c.charCodeAt(0));
+      return URL.createObjectURL(new Blob([bytes], { type: data.mime || 'image/jpeg' }));
+    });
+  p.catch(() => imageCache.delete(fileId)); // 失敗したら次回再取得
+  imageCache.set(fileId, p);
+
+  // 古いものから破棄（表示中の3枚は直近なので残る）
+  while (imageCache.size > IMAGE_CACHE_MAX) {
+    const [oldId, oldPromise] = imageCache.entries().next().value;
+    imageCache.delete(oldId);
+    oldPromise.then(u => URL.revokeObjectURL(u)).catch(() => {});
+  }
+  return p;
+}
+
+function preloadImage(fileId) {
+  if (gasUrl) {
+    loadImageUrl(fileId).catch(() => {});
+  } else {
+    new Image().src = getImageUrl(fileId);
+  }
+}
+
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -980,12 +1037,20 @@ async function startSlideshow() {
   if (intervalSec < 3) { setErr(3, '最低3秒以上を設定してください'); return; }
   nightStart = parseInt(document.getElementById('night-start').value);
   nightEnd = parseInt(document.getElementById('night-end').value);
+  gasUrl = document.getElementById('gas-url').value.trim();
+  gasKey = document.getElementById('gas-key').value.trim();
+  if (gasUrl && !gasUrl.startsWith('https://script.google.com/')) {
+    setErr(3, 'ウェブアプリURLは https://script.google.com/ で始まるURLを入力してください'); return;
+  }
+  if (gasUrl && !gasKey) { setErr(3, '合言葉を入力してください'); return; }
 
   localStorage.setItem('pf_folder_id', folderId);
   localStorage.setItem('pf_photos_per_year', photosPerYear);
   localStorage.setItem('pf_interval', intervalSec);
   localStorage.setItem('pf_night_start', nightStart);
   localStorage.setItem('pf_night_end', nightEnd);
+  localStorage.setItem('pf_gas_url', gasUrl);
+  localStorage.setItem('pf_gas_key', gasKey);
 
   document.getElementById('loading').style.display = 'flex';
   document.getElementById('loading').querySelector('.loading-text').textContent = '写真を読み込んでいます';
@@ -1006,12 +1071,22 @@ async function startSlideshow() {
   yearGroups = groupByYear(initialPhotos);
   currentYearIndex = 0;
   currentYearCount = 0;
-  document.getElementById('loading').style.display = 'none';
 
   buildSlides();
+  slideRendered = false;
   const firstPhoto = getNextPhoto();
   recordHistory(firstPhoto);
-  showSlide(firstPhoto);
+  await showSlide(firstPhoto);
+  if (!slideRendered) {
+    // 1枚目の取得に失敗：読み込み画面に理由を出したまま、次の写真で再挑戦する
+    document.getElementById('loading').querySelector('.loading-text').textContent =
+      '画像を取得できませんでした。ウェブアプリURLと合言葉を確認してください（タップで設定に戻る）';
+    document.getElementById('loading').onclick = () => {
+      document.getElementById('loading').onclick = null;
+      document.getElementById('loading').style.display = 'none';
+      goToSetup();
+    };
+  }
   startTimer();
   checkNight();
   setInterval(checkNight, 60000);
@@ -1055,7 +1130,20 @@ function buildSlides() {
 }
 
 function showSlide(photo) {
-  const url = getImageUrl(photo.id);
+  const seq = ++slideSeq;
+  return loadImageUrl(photo.id)
+    .then(url => {
+      if (seq !== slideSeq) return; // 読み込み中に次の写真へ進んだら破棄
+      renderSlide(photo, url);
+    })
+    .catch(e => console.error('画像の取得に失敗しました:', photo.id, e));
+}
+
+function renderSlide(photo, url) {
+  if (!slideRendered) {
+    slideRendered = true;
+    document.getElementById('loading').style.display = 'none';
+  }
   const nextLayer = (activeLayer + 1) % 3;
 
   const el = document.getElementById('slide-' + nextLayer);
@@ -1104,10 +1192,10 @@ function showSlide(photo) {
     dateEl.classList.remove('visible');
   }
 
-  // 次の写真をプリロード
-  const next = yearGroups[currentYearIndex].photos[(currentYearCount) % yearGroups[currentYearIndex].photos.length];
-  const preload = new Image();
-  preload.src = getImageUrl(next.id);
+  // 次に表示する写真をプリロード
+  const display = yearGroups[currentYearIndex]._display;
+  const next = display && display[currentYearCount];
+  if (next) preloadImage(next.id);
 }
 
 function startTimer() {
@@ -1307,6 +1395,8 @@ function init() {
   document.getElementById('interval').value = localStorage.getItem('pf_interval') || 15;
   document.getElementById('night-start').value = localStorage.getItem('pf_night_start') ?? 22;
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
+  document.getElementById('gas-url').value = localStorage.getItem('pf_gas_url') || '';
+  document.getElementById('gas-key').value = localStorage.getItem('pf_gas_key') || '';
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
   if (savedClientId) showScreen(2);

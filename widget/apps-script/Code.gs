@@ -1,18 +1,31 @@
 // ===== PhotoFrame Widget API (Google Apps Script) =====
-// Googleドライブのフォルダから写真を1枚選び、縮小画像をJSONで返すWebアプリ。
-// iPadのScriptableウィジェット（widget/scriptable/PhotoFrameWidget.js）から呼び出す。
+// Googleドライブのフォルダの写真を、縮小画像としてJSONで返すWebアプリ。
+// - iPadのScriptableウィジェット（widget/scriptable/PhotoFrameWidget.js）：ランダムに1枚
+// - フォトフレーム本体（photoframe.html）：id=ファイルID で指定した1枚
 
 // ===== 設定 =====
 const FOLDER_ID = 'ここにフォルダIDを入力';        // フォトフレームと同じフォルダID
 const SECRET = 'ここに長いランダムな文字列を入力';   // ウィジェット側と同じ値にする
 const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
-const MAX_SIZE = 1600;
+const MAX_SIZE = 2048;
 const LIST_CACHE_SECONDS = 6 * 60 * 60;             // 写真一覧のキャッシュ時間（最大6時間）
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
   if (params.key !== SECRET) return json_({ error: 'unauthorized' });
+
+  const size = Math.min(parseInt(params.size, 10) || DEFAULT_SIZE, MAX_SIZE);
+
+  // id指定：フォトフレーム本体から、表示する写真を1枚取得
+  if (params.id) {
+    try {
+      const image = fetchImage_(params.id, size, true);
+      return json_({ id: params.id, mime: image.mime, source: image.source, image: image.base64 });
+    } catch (err) {
+      return json_({ error: String(err) });
+    }
+  }
 
   const photos = getPhotoList_();
   if (photos.length === 0) return json_({ error: 'no photos' });
@@ -26,31 +39,44 @@ function doGet(e) {
   }
 
   const [id, time] = pool[Math.floor(Math.random() * pool.length)];
-  const size = Math.min(parseInt(params.size, 10) || DEFAULT_SIZE, MAX_SIZE);
 
   try {
-    const bytes = fetchImageBytes_(id, size);
-    return json_({ id, time, image: Utilities.base64Encode(bytes) });
+    const image = fetchImage_(id, size, false);
+    return json_({ id, time, mime: image.mime, source: image.source, image: image.base64 });
   } catch (err) {
     return json_({ error: String(err) });
   }
 }
 
 // 縮小サムネイルを取得（失敗時は小さいファイルに限り原寸）
-function fetchImageBytes_(id, size) {
-  const file = Drive.Files.get(id, { fields: 'thumbnailLink,size' });
+// checkFolder=true のときは、設定したフォルダ内の画像以外を拒否する
+function fetchImage_(id, size, checkFolder) {
+  const file = Drive.Files.get(id, { fields: 'thumbnailLink,size,mimeType,parents' });
+  if (checkFolder) {
+    const inFolder = (file.parents || []).indexOf(FOLDER_ID) >= 0;
+    if (!inFolder || !/^image\//.test(file.mimeType || '')) throw new Error('not found');
+  }
+
   if (file.thumbnailLink) {
     const url = file.thumbnailLink.replace(/=s\d+$/, '=s' + size);
     const res = UrlFetchApp.fetch(url, {
       headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
       muteHttpExceptions: true
     });
-    if (res.getResponseCode() === 200) return res.getBlob().getBytes();
+    if (res.getResponseCode() === 200) return toImage_(res.getBlob(), 'thumbnail');
   }
   if (Number(file.size) <= FALLBACK_MAX_BYTES) {
-    return DriveApp.getFileById(id).getBlob().getBytes();
+    return toImage_(DriveApp.getFileById(id).getBlob(), 'original');
   }
   throw new Error('thumbnail unavailable');
+}
+
+function toImage_(blob, source) {
+  return {
+    mime: blob.getContentType() || 'image/jpeg',
+    source,
+    base64: Utilities.base64Encode(blob.getBytes())
+  };
 }
 
 // 写真一覧 [[id, exifTime], ...] をキャッシュ付きで取得
@@ -110,8 +136,13 @@ function clearCache() {
 function test() {
   const photos = getPhotoList_();
   console.log('写真の枚数: ' + photos.length);
-  const res = doGet({ parameter: { key: SECRET } });
-  console.log(res.getContent().substring(0, 200));
+  const res = JSON.parse(doGet({ parameter: { key: SECRET } }).getContent());
+  if (res.error) {
+    console.log('画像の取得に失敗: ' + res.error);
+  } else {
+    // source が thumbnail なら縮小画像の取得に成功（original は原寸で代用）
+    console.log('画像の取得に成功: source=' + res.source + ', ' + Math.round(res.image.length / 1024) + 'KB');
+  }
 }
 
 function json_(obj) {
