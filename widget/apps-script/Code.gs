@@ -5,19 +5,29 @@
 // - フォトフレーム本体の授乳パネル：action=feeding で piyolog-dashboard の授乳状況を中継
 
 // ===== 設定 =====
-const FOLDER_ID = 'ここにフォルダIDを入力';        // フォトフレームと同じフォルダID
-const SECRET = 'ここに長いランダムな文字列を入力';   // ウィジェット側と同じ値にする
+// 秘密の値はコードに書かず「プロジェクトの設定（⚙）→ スクリプト プロパティ」に保存する。
+// コードを丸ごと貼り替えても値は消えない。
+//   FOLDER_ID                    … フォトフレームと同じフォルダID
+//   SECRET                       … 合言葉（フォトフレーム・ウィジェット側と同じ値）
+//   PIYOLOG_URL                  … 授乳パネル用：piyolog-dashboard のURL（末尾の /api/summary は不要）
+//   PIYOLOG_ACCESS_CLIENT_ID     … piyolog-dashboard を Cloudflare Access で保護している場合のサービストークンID
+//   PIYOLOG_ACCESS_CLIENT_SECRET … 同シークレット
+const PROPS = PropertiesService.getScriptProperties().getProperties();
+const FOLDER_ID = PROPS.FOLDER_ID || '';
+const SECRET = PROPS.SECRET || '';
+const PIYOLOG_URL = PROPS.PIYOLOG_URL || '';
+const PIYOLOG_ACCESS_CLIENT_ID = PROPS.PIYOLOG_ACCESS_CLIENT_ID || '';
+const PIYOLOG_ACCESS_CLIENT_SECRET = PROPS.PIYOLOG_ACCESS_CLIENT_SECRET || '';
+
 const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
 const MAX_SIZE = 2048;
 const LIST_CACHE_SECONDS = 6 * 60 * 60;             // 写真一覧のキャッシュ時間（最大6時間）
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
-const PIYOLOG_URL = '';                             // 授乳パネル用：piyolog-dashboard のURL（例：https://piyolog-dashboard.xxxx.workers.dev）末尾の /api/summary は不要
-// piyolog-dashboard を Cloudflare Access で保護している場合のみ：サービストークンのIDとシークレット
-const PIYOLOG_ACCESS_CLIENT_ID = '';
-const PIYOLOG_ACCESS_CLIENT_SECRET = '';
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
+  // SECRET未設定のまま公開すると、空の合言葉で誰でも通れてしまうため拒否
+  if (!SECRET || !FOLDER_ID) return json_({ error: 'スクリプト プロパティの FOLDER_ID / SECRET が設定されていません' });
   if (params.key !== SECRET) return json_({ error: 'unauthorized' });
 
   // action=feeding：授乳状況（ブラウザから piyolog-dashboard を直接読むとCORSで拒否されるため中継）
@@ -87,7 +97,7 @@ function fetchImage_(id, size, checkFolder) {
 
 // piyolog-dashboard の /api/summary から、授乳パネルで使う項目だけを返す
 function fetchFeeding_() {
-  if (!PIYOLOG_URL) throw new Error('PIYOLOG_URL が設定されていません');
+  if (!PIYOLOG_URL) throw new Error('スクリプト プロパティの PIYOLOG_URL が設定されていません');
   const base = PIYOLOG_URL.replace(/\/+$/, '').replace(/\/api\/summary$/, '');
   const headers = {};
   if (PIYOLOG_ACCESS_CLIENT_ID) {
@@ -101,7 +111,7 @@ function fetchFeeding_() {
 
   // ログイン画面への転送やHTMLが返ってきた場合は、原因の手がかりをエラーに含める
   if (/cloudflareaccess\.com/.test(location) || /cloudflareaccess\.com|Cloudflare Access/i.test(text)) {
-    throw new Error('piyolog-dashboard は Cloudflare Access で保護されています。サービストークンを PIYOLOG_ACCESS_CLIENT_ID / SECRET に設定してください');
+    throw new Error('piyolog-dashboard は Cloudflare Access で保護されています。サービストークンをスクリプト プロパティの PIYOLOG_ACCESS_CLIENT_ID / PIYOLOG_ACCESS_CLIENT_SECRET に設定してください');
   }
   if (code >= 300 && code < 400) throw new Error('piyolog-dashboard が別のURLへ転送しました（' + code + ' → ' + location + '）。PIYOLOG_URL を確認してください');
   if (code !== 200) throw new Error('piyolog-dashboard HTTP ' + code + '：' + text.substring(0, 100));
