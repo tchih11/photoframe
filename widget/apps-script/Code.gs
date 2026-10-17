@@ -2,6 +2,7 @@
 // Googleドライブのフォルダの写真を、縮小画像としてJSONで返すWebアプリ。
 // - iPadのScriptableウィジェット（widget/scriptable/PhotoFrameWidget.js）：ランダムに1枚
 // - フォトフレーム本体（photoframe.html）：id=ファイルID で指定した1枚
+// - フォトフレーム本体の授乳パネル：action=feeding で piyolog-dashboard の授乳状況を中継
 
 // ===== 設定 =====
 const FOLDER_ID = 'ここにフォルダIDを入力';        // フォトフレームと同じフォルダID
@@ -10,10 +11,20 @@ const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
 const MAX_SIZE = 2048;
 const LIST_CACHE_SECONDS = 6 * 60 * 60;             // 写真一覧のキャッシュ時間（最大6時間）
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
+const PIYOLOG_URL = '';                             // 授乳パネル用：piyolog-dashboard のURL（例：https://piyolog-dashboard.xxxx.workers.dev）
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
   if (params.key !== SECRET) return json_({ error: 'unauthorized' });
+
+  // action=feeding：授乳状況（ブラウザから piyolog-dashboard を直接読むとCORSで拒否されるため中継）
+  if (params.action === 'feeding') {
+    try {
+      return json_(fetchFeeding_());
+    } catch (err) {
+      return json_({ error: String(err) });
+    }
+  }
 
   const size = Math.min(parseInt(params.size, 10) || DEFAULT_SIZE, MAX_SIZE);
 
@@ -69,6 +80,28 @@ function fetchImage_(id, size, checkFolder) {
     return toImage_(DriveApp.getFileById(id).getBlob(), 'original');
   }
   throw new Error('thumbnail unavailable');
+}
+
+// piyolog-dashboard の /api/summary から、授乳パネルで使う項目だけを返す
+function fetchFeeding_() {
+  if (!PIYOLOG_URL) throw new Error('PIYOLOG_URL が設定されていません');
+  const res = UrlFetchApp.fetch(PIYOLOG_URL.replace(/\/+$/, '') + '/api/summary', { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('piyolog-dashboard HTTP ' + res.getResponseCode());
+  const summary = JSON.parse(res.getContentText());
+  return {
+    updatedAt: summary.updatedAt || null,
+    lastWebhookReceivedAt: summary.lastWebhookReceivedAt || null,
+    babies: (summary.babies || []).map(b => ({
+      babyName: b.babyName,
+      feeding: {
+        lastAt: (b.feeding && b.feeding.lastAt) || null,
+        lastCategory: (b.feeding && b.feeding.lastCategory) || null,
+        lastAmountMl: b.feeding ? b.feeding.lastAmountMl : null,
+        lastDurationMin: b.feeding ? b.feeding.lastDurationMin : null
+      },
+      milpon: { lastAt: (b.milpon && b.milpon.lastAt) || null }
+    }))
+  };
 }
 
 function toImage_(blob, source) {
@@ -130,6 +163,11 @@ function clearCache() {
   const keys = ['list_chunks'];
   for (let i = 0; i < count; i++) keys.push('list_' + i);
   cache.removeAll(keys);
+}
+
+// 授乳パネルの動作確認用：エディタから実行してログを見る
+function testFeeding() {
+  console.log(JSON.stringify(fetchFeeding_(), null, 2));
 }
 
 // 動作確認用：エディタから実行してログを見る
