@@ -11,7 +11,10 @@ const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
 const MAX_SIZE = 2048;
 const LIST_CACHE_SECONDS = 6 * 60 * 60;             // 写真一覧のキャッシュ時間（最大6時間）
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
-const PIYOLOG_URL = '';                             // 授乳パネル用：piyolog-dashboard のURL（例：https://piyolog-dashboard.xxxx.workers.dev）
+const PIYOLOG_URL = '';                             // 授乳パネル用：piyolog-dashboard のURL（例：https://piyolog-dashboard.xxxx.workers.dev）末尾の /api/summary は不要
+// piyolog-dashboard を Cloudflare Access で保護している場合のみ：サービストークンのIDとシークレット
+const PIYOLOG_ACCESS_CLIENT_ID = '';
+const PIYOLOG_ACCESS_CLIENT_SECRET = '';
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
@@ -85,9 +88,30 @@ function fetchImage_(id, size, checkFolder) {
 // piyolog-dashboard の /api/summary から、授乳パネルで使う項目だけを返す
 function fetchFeeding_() {
   if (!PIYOLOG_URL) throw new Error('PIYOLOG_URL が設定されていません');
-  const res = UrlFetchApp.fetch(PIYOLOG_URL.replace(/\/+$/, '') + '/api/summary', { muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) throw new Error('piyolog-dashboard HTTP ' + res.getResponseCode());
-  const summary = JSON.parse(res.getContentText());
+  const base = PIYOLOG_URL.replace(/\/+$/, '').replace(/\/api\/summary$/, '');
+  const headers = {};
+  if (PIYOLOG_ACCESS_CLIENT_ID) {
+    headers['CF-Access-Client-Id'] = PIYOLOG_ACCESS_CLIENT_ID;
+    headers['CF-Access-Client-Secret'] = PIYOLOG_ACCESS_CLIENT_SECRET;
+  }
+  const res = UrlFetchApp.fetch(base + '/api/summary', { headers, muteHttpExceptions: true, followRedirects: false });
+  const code = res.getResponseCode();
+  const text = res.getContentText();
+  const location = res.getAllHeaders()['Location'] || res.getAllHeaders()['location'] || '';
+
+  // ログイン画面への転送やHTMLが返ってきた場合は、原因の手がかりをエラーに含める
+  if (/cloudflareaccess\.com/.test(location) || /cloudflareaccess\.com|Cloudflare Access/i.test(text)) {
+    throw new Error('piyolog-dashboard は Cloudflare Access で保護されています。サービストークンを PIYOLOG_ACCESS_CLIENT_ID / SECRET に設定してください');
+  }
+  if (code >= 300 && code < 400) throw new Error('piyolog-dashboard が別のURLへ転送しました（' + code + ' → ' + location + '）。PIYOLOG_URL を確認してください');
+  if (code !== 200) throw new Error('piyolog-dashboard HTTP ' + code + '：' + text.substring(0, 100));
+  let summary;
+  try {
+    summary = JSON.parse(text);
+  } catch (e) {
+    const title = (text.match(/<title>([^<]*)<\/title>/i) || [])[1] || text.substring(0, 100);
+    throw new Error('JSONではなくHTMLが返りました（ページタイトル：' + title + '）。PIYOLOG_URL がダッシュボードのURLになっているか確認してください。リクエスト先：' + base + '/api/summary');
+  }
   return {
     updatedAt: summary.updatedAt || null,
     lastWebhookReceivedAt: summary.lastWebhookReceivedAt || null,
