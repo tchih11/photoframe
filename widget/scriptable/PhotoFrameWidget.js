@@ -10,6 +10,7 @@ const CHILDREN = [
 ];
 const REFRESH_MINUTES = 30;   // 更新間隔の目安（実際のタイミングはiPadOSが決める）
 const OPEN_URL = '';          // タップで開くURL（フォトフレームのURLなど。空なら何もしない）
+const SHOW_STATUS = true;     // 右上に更新時刻を表示（動作確認できたら false にしてOK）
 // =================
 
 const family = config.widgetFamily || 'large';
@@ -90,7 +91,20 @@ function addShadowText(widget, text, size) {
   return t;
 }
 
-function buildWidget(photo) {
+// 右上に更新時刻を表示（取得失敗時は⚠︎付き）。更新されているかの確認用
+function addStatus(widget, error) {
+  const row = widget.addStack();
+  row.addSpacer();
+  const df = new DateFormatter();
+  df.dateFormat = 'H:mm';
+  const t = row.addText(error ? `⚠︎ ${df.string(new Date())} 取得失敗` : `${df.string(new Date())} 更新`);
+  t.font = Font.systemFont(9);
+  t.textColor = new Color('#ffffff', 0.85);
+  t.shadowColor = new Color('#000000', 0.8);
+  t.shadowRadius = 2;
+}
+
+function buildWidget(photo, error) {
   const w = new ListWidget();
   w.backgroundColor = new Color('#111111');
   w.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60 * 1000);
@@ -98,11 +112,13 @@ function buildWidget(photo) {
 
   if (!photo) {
     addShadowText(w, '写真を取得できませんでした', 13);
+    if (error) addShadowText(w, String(error.message || error), 10);
     return w;
   }
 
   w.backgroundImage = photo.img;
   w.setPadding(10, 12, 10, 12);
+  if (SHOW_STATUS) addStatus(w, error);
   w.addSpacer();
 
   if (photo.time) {
@@ -123,15 +139,17 @@ function buildWidget(photo) {
 }
 
 let photo;
+let error = null;
 try {
   photo = await fetchPhoto();
   saveCache(photo);
 } catch (e) {
   console.error(e);
+  error = e;
   photo = loadCache(); // 通信失敗時は前回の写真を表示
 }
 
-const widget = buildWidget(photo);
+const widget = buildWidget(photo, error);
 if (config.runsInWidget) {
   Script.setWidget(widget);
 } else {
