@@ -49,6 +49,7 @@
     overflow: hidden;
   }
   .slide.active { opacity: 1; }
+  #slideshow.fast .slide { transition-duration: 0.25s; }
   .slide.prev   { opacity: 0; }
 
   .slide-bg {
@@ -511,7 +512,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.10.1</div>
+    <div class="version">v1.11.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -534,7 +535,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.10.1</div>
+    <div class="version">v1.11.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -557,7 +558,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.10.1</div>
+    <div class="version">v1.11.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -919,7 +920,7 @@ async function fetchPhotosBatch(pageToken = '') {
 // 初回：最初の100件だけ取得
 async function fetchInitialPhotos() {
   if (gasUrl) {
-    const fromGas = await fetchPhotosFromGas();
+    const fromGas = await fetchPhotosFromGas(true);
     if (fromGas) return fromGas;
     // Apps Scriptが写真一覧に未対応（古いバージョン）：従来どおりGoogleログインで一覧を取得
     if (!accessToken || !folderId) return { photos: [], nextPageToken: '', needLogin: true };
@@ -938,20 +939,40 @@ async function fetchInitialPhotos() {
 }
 
 // Apps Script経由で全件を一度に取得（Googleログイン不要）
-async function fetchPhotosFromGas() {
+// quick=true：Apps Scriptに一覧のキャッシュがなければ一部だけ先に受け取る（complete=false）
+async function fetchPhotosFromGas(quick = false) {
   try {
-    const res = await fetch(`${gasUrl}?key=${encodeURIComponent(gasKey)}&action=list`);
+    const res = await fetch(`${gasUrl}?key=${encodeURIComponent(gasKey)}&action=list${quick ? '&quick=1' : ''}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     if (!Array.isArray(data.photos)) return null; // 古いApps Script（action=list 未対応）
     const photos = data.photos.map(([id, time]) => ({ id, imageMediaMetadata: time ? { time } : undefined }));
-    return { photos, nextPageToken: '' };
+    return { photos, nextPageToken: '', complete: data.complete !== false };
   } catch (e) {
     console.error('fetchPhotosFromGas error:', e);
     setErr(3, '写真一覧を取得できませんでした（' + e.message + '）。ウェブアプリURLと合言葉を確認してください。');
     return { photos: [], nextPageToken: '' };
   }
+}
+
+let slideshowInitialized = false;
+
+// Apps Scriptから全件の一覧を取得して差し替え（表示中の写真はそのまま）
+async function loadFullPhotoList() {
+  const result = await fetchPhotosFromGas(false);
+  setErr(3, ''); // 裏での取得失敗は設定画面のエラーとして残さない
+  if (result && result.photos.length > 0) replacePhotos(result.photos);
+}
+
+// 写真一覧を新しいものに差し替える。年ごと表示は今の年を維持し、全期間は次の写真から新しい一覧でシャッフル
+function replacePhotos(photos) {
+  const currentYear = yearGroups[currentYearIndex]?.year;
+  yearGroups = groupByYear(photos);
+  const idx = yearGroups.findIndex(g => g.year === currentYear);
+  currentYearIndex = idx >= 0 ? idx : 0;
+  currentYearCount = 0;
+  allGroup._display = null;
 }
 
 // バックグラウンド：残り全件を取得してyearGroupsにマージ
@@ -1027,9 +1048,10 @@ function getImageUrl(fileId) {
 // Apps Script経由で画像を取得（SafariのGoogleログイン状態に依存しない）
 // 未設定の場合は従来どおり lh3 のURLを直接使う
 const IMAGE_SIZE = 2048;
-const IMAGE_CACHE_MAX = 8;
+const IMAGE_CACHE_MAX = 20; // スワイプで戻ったときにすぐ出せるよう、直近の画像を多めに保持
 const imageCache = new Map(); // fileId → Promise<表示用URL>
 let slideSeq = 0;
+let fastTransition = false; // スワイプ時はフェードを短くする
 let slideRendered = false;
 
 function loadImageUrl(fileId) {
@@ -1207,7 +1229,7 @@ async function startSlideshow() {
   document.getElementById('setup').style.display = 'none';
 
   // 初回100件取得
-  const { photos: initialPhotos, nextPageToken, needLogin } = await fetchInitialPhotos();
+  const { photos: initialPhotos, nextPageToken, needLogin, complete } = await fetchInitialPhotos();
   if (needLogin) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('setup').style.display = 'flex';
@@ -1251,23 +1273,33 @@ async function startSlideshow() {
   }
   startTimer();
   checkNight();
-  setInterval(checkNight, 60000);
 
   // バックグラウンドで残りを取得
-  fetchRemainingPhotos(nextPageToken);
+  if (gasUrl) {
+    if (complete === false) loadFullPhotoList();
+  } else {
+    fetchRemainingPhotos(nextPageToken);
+  }
 
-  // 50分ごとに再取得（トークン期限対策）
+  if (feedEnabled) startFeedPanel();
+
+  // 以下は1回だけ登録（設定画面から開始し直しても二重に動かないように）
+  if (slideshowInitialized) return;
+  slideshowInitialized = true;
+  setInterval(checkNight, 60000);
+
+  // 50分ごとに一覧を取り直す（新しい写真の反映）
   setInterval(async () => {
+    if (gasUrl) { loadFullPhotoList(); return; }
     const { photos: refreshed, nextPageToken: newToken } = await fetchInitialPhotos();
     if (refreshed.length > 0) {
-      yearGroups = groupByYear(refreshed);
+      replacePhotos(refreshed);
       fetchRemainingPhotos(newToken);
     }
   }, 50 * 60 * 1000);
 
   document.body.addEventListener('click', showHud);
   initSwipe();
-  if (feedEnabled) startFeedPanel();
 }
 
 function buildSlides() {
@@ -1303,6 +1335,8 @@ function showSlide(photo) {
 }
 
 function renderSlide(photo, url) {
+  document.getElementById('slideshow').classList.toggle('fast', fastTransition);
+  fastTransition = false;
   if (!slideRendered) {
     slideRendered = true;
     document.getElementById('loading').style.display = 'none';
@@ -1500,14 +1534,17 @@ function advancePhoto() {
 }
 
 function goNext() {
+  fastTransition = true;
   advancePhoto();
   resetProgressBar();
 }
 
 function goPrev() {
   if (historyPos <= 0) return;
+  fastTransition = true;
   historyPos--;
   showSlide(photoHistory[historyPos]);
+  if (historyPos > 0) preloadImage(photoHistory[historyPos - 1].id); // さらに前の写真も先読み
   resetProgressBar();
 }
 

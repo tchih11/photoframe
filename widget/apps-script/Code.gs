@@ -22,7 +22,8 @@ const PIYOLOG_ACCESS_CLIENT_SECRET = PROPS.PIYOLOG_ACCESS_CLIENT_SECRET || '';
 
 const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
 const MAX_SIZE = 2048;
-const LIST_CACHE_SECONDS = 60 * 60;                 // 写真一覧のキャッシュ時間（新しい写真は最大1時間で反映）
+const LIST_CACHE_SECONDS = 2 * 60 * 60;             // 写真一覧のキャッシュ時間（installTrigger で1時間ごとに作り直す）
+const QUICK_LIST_SIZE = 300;                        // キャッシュがないとき、起動用にまず返す枚数
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
 
 function doGet(e) {
@@ -41,9 +42,15 @@ function doGet(e) {
   }
 
   // action=list：写真一覧 [[id, exifTime], ...]
+  // quick=1：キャッシュがあれば全件、なければ一部だけすぐ返す（残りはフォトフレームが後から全件を取得）
   if (params.action === 'list') {
     try {
-      return json_({ photos: getPhotoList_() });
+      if (params.quick) {
+        const cached = getCachedPhotoList_();
+        if (cached) return json_({ photos: cached, complete: true });
+        return json_({ photos: fetchQuickPhotoList_(), complete: false });
+      }
+      return json_({ photos: getPhotoList_(), complete: true });
     } catch (err) {
       return json_({ error: String(err) });
     }
@@ -158,17 +165,10 @@ function toImage_(blob, source) {
 
 // 写真一覧 [[id, exifTime], ...] をキャッシュ付きで取得
 function getPhotoList_() {
-  const cache = CacheService.getScriptCache();
-  const count = parseInt(cache.get('list_chunks'), 10);
-  if (count > 0) {
-    const keys = [];
-    for (let i = 0; i < count; i++) keys.push('list_' + i);
-    const got = cache.getAll(keys);
-    if (Object.keys(got).length === count) {
-      return keys.reduce((acc, k) => acc.concat(JSON.parse(got[k])), []);
-    }
-  }
+  const cached = getCachedPhotoList_();
+  if (cached) return cached;
 
+  const cache = CacheService.getScriptCache();
   const photos = fetchPhotoList_();
   // CacheServiceは1キー100KBまでなので分割して保存
   const CHUNK = 1000;
@@ -180,6 +180,28 @@ function getPhotoList_() {
   entries['list_chunks'] = String(n);
   cache.putAll(entries, LIST_CACHE_SECONDS);
   return photos;
+}
+
+// キャッシュ済みの写真一覧（なければ null）
+function getCachedPhotoList_() {
+  const cache = CacheService.getScriptCache();
+  const count = parseInt(cache.get('list_chunks'), 10);
+  if (!(count > 0)) return null;
+  const keys = [];
+  for (let i = 0; i < count; i++) keys.push('list_' + i);
+  const got = cache.getAll(keys);
+  if (Object.keys(got).length !== count) return null;
+  return keys.reduce((acc, k) => acc.concat(JSON.parse(got[k])), []);
+}
+
+// 起動を速くするため、ドライブの1ページ分だけ取得（キャッシュはしない）
+function fetchQuickPhotoList_() {
+  const res = Drive.Files.list({
+    q: `'${FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`,
+    fields: 'files(id, md5Checksum, size, imageMediaMetadata(time))',
+    pageSize: QUICK_LIST_SIZE
+  });
+  return dedupePhotos_(res.files || []);
 }
 
 function fetchPhotoList_() {
@@ -234,6 +256,23 @@ function clearCache() {
 // 授乳パネルの動作確認用：エディタから実行してログを見る
 function testFeeding() {
   console.log(JSON.stringify(fetchFeeding_(), null, 2));
+}
+
+// 写真一覧を作り直してキャッシュする（トリガーから1時間ごとに実行）
+function refreshListCache() {
+  clearCache();
+  const photos = getPhotoList_();
+  console.log('写真一覧を更新しました: ' + photos.length + '枚');
+}
+
+// 初回だけエディタから実行：refreshListCache を1時間ごとに動かすトリガーを登録
+function installTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'refreshListCache')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('refreshListCache').timeBased().everyHours(1).create();
+  refreshListCache();
+  console.log('1時間ごとの写真一覧の更新を登録しました');
 }
 
 // 動作確認用：エディタから実行してログを見る
