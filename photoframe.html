@@ -131,7 +131,7 @@
     font-weight: 300;
   }
 
-  input[type="text"], input[type="number"] {
+  input[type="text"], input[type="number"], input[type="password"] {
     width: 100%;
     background: rgba(255,255,255,0.05);
     border: 1px solid var(--border);
@@ -387,6 +387,45 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 13px; color: rgba(255,255,255,0.4); letter-spacing: 1px; }
+
+  /* ===== 授乳パネル ===== */
+  #feed-panel {
+    position: fixed;
+    right: 32px; top: 32px;
+    z-index: 55; /* 夜間オーバーレイ(50)より上、HUD(60)より下 */
+    display: none;
+    gap: 28px;
+    padding: 24px 30px 22px;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 24px;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity 0.6s, background 0.6s, border-color 0.6s;
+  }
+  #feed-panel.visible { display: flex; }
+  #feed-panel.dragging { opacity: 0.75; transition: none; }
+  /* 夜間は写真を隠し、授乳パネルだけを暗めに表示 */
+  #night-overlay.on ~ #feed-panel { opacity: 0.55; background: transparent; border-color: transparent; }
+  .feed-col { min-width: 200px; }
+  .feed-divider { width: 1px; background: rgba(255, 255, 255, 0.15); }
+  .feed-label { font-size: 15px; font-weight: 600; color: rgba(235, 235, 245, 0.62); margin-bottom: 6px; }
+  .feed-time { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .feed-detail { font-size: 20px; font-weight: 700; margin-top: 2px; min-height: 26px; }
+  .feed-detail .formula { color: #3987e5; }
+  .feed-detail .nursing { color: #d95926; }
+  .feed-elapsed-label { font-size: 13px; font-weight: 600; color: rgba(235, 235, 245, 0.48); margin-top: 12px; }
+  .feed-elapsed { font-size: 52px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .feed-elapsed.warn { color: #ff453a; }
+  .feed-status { position: absolute; top: 9px; right: 16px; font-size: 11px; color: rgba(235, 235, 245, 0.48); }
+  .feed-status.error { color: #ff453a; }
+  .check-field { display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; }
+  .check-field input { width: 18px; height: 18px; accent-color: var(--accent); }
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -397,6 +436,25 @@
 <div id="photo-date"></div>
 
 <div id="night-overlay" onclick="showHud()"></div>
+
+<div id="feed-panel">
+  <div class="feed-status" id="feed-status"></div>
+  <div class="feed-col">
+    <div class="feed-label">前回の授乳</div>
+    <div class="feed-time" id="feed-last-time">--:--</div>
+    <div class="feed-detail" id="feed-last-detail"></div>
+    <div class="feed-elapsed-label">経過時間</div>
+    <div class="feed-elapsed" id="feed-elapsed">--:--</div>
+  </div>
+  <div class="feed-divider"></div>
+  <div class="feed-col">
+    <div class="feed-label">前回のミルポン</div>
+    <div class="feed-time" id="milpon-time">--:--</div>
+    <div class="feed-detail"></div>
+    <div class="feed-elapsed-label">経過時間</div>
+    <div class="feed-elapsed" id="milpon-elapsed">--:--</div>
+  </div>
+</div>
 
 <div id="loading">
   <div class="spinner"></div>
@@ -416,6 +474,7 @@
     <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
     <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortMode()">🔀 ランダム</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
+    <button class="hud-btn" id="feed-reset-btn" onclick="resetFeedPanelPosition()" style="display:none">📍 授乳パネルを元の位置へ</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
 </div>
@@ -426,7 +485,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.6.0</div>
+    <div class="version">v1.7.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -448,7 +507,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.6.0</div>
+    <div class="version">v1.7.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -471,7 +530,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.6.0</div>
+    <div class="version">v1.7.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -511,6 +570,9 @@
         <label>合言葉（SECRET）</label>
         <input type="password" id="gas-key" placeholder="Code.gs の SECRET と同じ値">
       </div>
+      <div class="field">
+        <label class="check-field"><input type="checkbox" id="feed-enabled">授乳パネルを表示する（ぴよログ）</label>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">子どもの情報（任意）</div>
@@ -539,6 +601,7 @@ let folderId = '';
 let photosPerYear = 100;
 let gasUrl = '';
 let gasKey = '';
+let feedEnabled = false;
 
 // 年グループ管理
 let yearGroups = [];      // [{year, photos: [...]}, ...]
@@ -1043,6 +1106,8 @@ async function startSlideshow() {
     setErr(3, 'ウェブアプリURLは https://script.google.com/ で始まるURLを入力してください'); return;
   }
   if (gasUrl && !gasKey) { setErr(3, '合言葉を入力してください'); return; }
+  feedEnabled = document.getElementById('feed-enabled').checked;
+  if (feedEnabled && !gasUrl) { setErr(3, '授乳パネルにはウェブアプリURLと合言葉が必要です'); return; }
 
   localStorage.setItem('pf_folder_id', folderId);
   localStorage.setItem('pf_photos_per_year', photosPerYear);
@@ -1051,6 +1116,7 @@ async function startSlideshow() {
   localStorage.setItem('pf_night_end', nightEnd);
   localStorage.setItem('pf_gas_url', gasUrl);
   localStorage.setItem('pf_gas_key', gasKey);
+  localStorage.setItem('pf_feed_enabled', feedEnabled ? '1' : '');
 
   document.getElementById('loading').style.display = 'flex';
   document.getElementById('loading').querySelector('.loading-text').textContent = '写真を読み込んでいます';
@@ -1105,6 +1171,7 @@ async function startSlideshow() {
 
   document.body.addEventListener('click', showHud);
   initSwipe();
+  if (feedEnabled) startFeedPanel();
 }
 
 function buildSlides() {
@@ -1376,10 +1443,218 @@ function showHud() {
 
 function goToSetup() {
   clearInterval(slideTimer);
+  stopFeedPanel();
   document.getElementById('slideshow').innerHTML = '';
   document.getElementById('hud').classList.remove('visible');
   document.getElementById('setup').style.display = 'flex';
   showScreen(3);
+}
+
+// ===== FEED PANEL（授乳パネル）=====
+// データ：Apps Script(action=feeding) 経由で piyolog-dashboard の /api/summary を取得
+const FEEDING_WARN_MINUTES = 180;      // 3時間経過で警告色（ダッシュボードと同じ）
+const MILPON_WARN_MINUTES = 24 * 60;   // ミルポンは24時間で交換
+const SYNC_WARN_MINUTES = 20;          // ぴよログからの送信がこれ以上途絶えたら警告
+const FEED_FETCH_INTERVAL_MIN = 5;     // ダッシュボードと同じく毎時01,06,11…分に取得
+const FEED_FETCH_ALIGN_OFFSET_MIN = 1;
+let feedSummary = null;
+let feedFetchFailed = false;
+let feedFetchTimer = null;
+let feedTickTimer = null;
+
+function startFeedPanel() {
+  stopFeedPanel();
+  document.getElementById('feed-panel').classList.add('visible');
+  document.getElementById('feed-reset-btn').style.display = '';
+  applyFeedPanelPosition();
+  fetchFeeding();
+  scheduleFeedFetch();
+  feedTickTimer = setInterval(renderFeedPanel, 30 * 1000); // 経過時間はローカルで再計算
+}
+
+function stopFeedPanel() {
+  clearTimeout(feedFetchTimer);
+  clearInterval(feedTickTimer);
+  document.getElementById('feed-panel').classList.remove('visible');
+  document.getElementById('feed-reset-btn').style.display = 'none';
+}
+
+function scheduleFeedFetch() {
+  const now = new Date();
+  const m = now.getMinutes();
+  let wait = (FEED_FETCH_ALIGN_OFFSET_MIN - m % FEED_FETCH_INTERVAL_MIN + FEED_FETCH_INTERVAL_MIN) % FEED_FETCH_INTERVAL_MIN;
+  if (wait === 0) wait = FEED_FETCH_INTERVAL_MIN;
+  const ms = wait * 60000 - now.getSeconds() * 1000 - now.getMilliseconds();
+  feedFetchTimer = setTimeout(() => { fetchFeeding(); scheduleFeedFetch(); }, ms);
+}
+
+async function fetchFeeding() {
+  try {
+    const res = await fetch(`${gasUrl}?key=${encodeURIComponent(gasKey)}&action=feeding`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    feedSummary = data;
+    feedSummary.fetchedAt = new Date();
+    feedFetchFailed = false;
+  } catch (e) {
+    console.error('授乳データの取得に失敗しました:', e);
+    feedFetchFailed = true;
+  }
+  renderFeedPanel();
+}
+
+// "2026-10-18 08:12:00"（タイムゾーンなし）はUTCとして扱う
+function parseFeedTime(str) {
+  if (!str) return null;
+  const s = /[zZ]|[+-]\d\d:?\d\d$/.test(str) ? str : str.replace(' ', 'T') + 'Z';
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+function minutesSinceTime(date, now) {
+  return date ? Math.max(0, Math.floor((now - date) / 60000)) : null;
+}
+
+function formatElapsedBig(minutes) {
+  if (minutes == null) return '--:--';
+  const totalHours = Math.floor(minutes / 60);
+  return (totalHours > 99 ? '99+' : String(totalHours)) + ':' + String(minutes % 60).padStart(2, '0');
+}
+
+// 今日 → "05:20"、昨日 → "昨日 05:20"、それ以前 → "10/16 19:40"
+function formatFeedClock(date, now) {
+  if (!date) return '--:--';
+  const hm = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  if (date.toDateString() === now.toDateString()) return hm;
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  if (date.toDateString() === yesterday.toDateString()) return `昨日 ${hm}`;
+  return `${date.getMonth() + 1}/${date.getDate()} ${hm}`;
+}
+
+function renderFeedPanel() {
+  const now = new Date();
+  const statusEl = document.getElementById('feed-status');
+  if (!feedSummary || !feedSummary.babies || feedSummary.babies.length === 0) {
+    statusEl.textContent = feedFetchFailed ? '⚠︎ 取得失敗' : '';
+    statusEl.classList.toggle('error', feedFetchFailed);
+    return;
+  }
+  const baby = feedSummary.babies[0]; // ダッシュボードと同じく1人目を表示
+  const f = baby.feeding;
+
+  const feedAt = parseFeedTime(f.lastAt);
+  const feedMin = minutesSinceTime(feedAt, now);
+  document.getElementById('feed-last-time').textContent = formatFeedClock(feedAt, now);
+  const detailEl = document.getElementById('feed-last-detail');
+  detailEl.textContent = '';
+  if (f.lastCategory) {
+    const cat = document.createElement('span');
+    cat.className = f.lastCategory;
+    cat.textContent = f.lastCategory === 'formula' ? 'ミルク' : '母乳';
+    detailEl.appendChild(cat);
+    const amount = f.lastCategory === 'formula'
+      ? (f.lastAmountMl != null ? f.lastAmountMl + 'ml' : '')
+      : (f.lastDurationMin != null ? f.lastDurationMin + '分' : '');
+    if (amount) detailEl.appendChild(document.createTextNode('を' + amount));
+  }
+  const feedEl = document.getElementById('feed-elapsed');
+  feedEl.textContent = formatElapsedBig(feedMin);
+  feedEl.classList.toggle('warn', feedMin != null && feedMin >= FEEDING_WARN_MINUTES);
+
+  const milponAt = parseFeedTime(baby.milpon && baby.milpon.lastAt);
+  const milponMin = minutesSinceTime(milponAt, now);
+  document.getElementById('milpon-time').textContent = formatFeedClock(milponAt, now);
+  const milponEl = document.getElementById('milpon-elapsed');
+  milponEl.textContent = formatElapsedBig(milponMin);
+  milponEl.classList.toggle('warn', milponMin != null && milponMin >= MILPON_WARN_MINUTES);
+
+  // 右上の小さな状態表示
+  const syncMin = minutesSinceTime(parseFeedTime(feedSummary.lastWebhookReceivedAt), now);
+  const syncStale = syncMin == null || syncMin >= SYNC_WARN_MINUTES;
+  statusEl.classList.toggle('error', feedFetchFailed || syncStale);
+  if (feedFetchFailed) {
+    statusEl.textContent = '⚠︎ 取得失敗';
+  } else if (syncStale) {
+    statusEl.textContent = '⚠︎ ぴよログの送信が止まっています（Androidを確認）';
+  } else {
+    const t = feedSummary.fetchedAt;
+    statusEl.textContent = `更新 ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  }
+}
+
+// --- 位置の調整：パネルをドラッグして移動（位置は保存される）---
+function applyFeedPanelPosition() {
+  const panel = document.getElementById('feed-panel');
+  let pos = null;
+  try { pos = JSON.parse(localStorage.getItem('pf_feed_pos')); } catch (e) {}
+  if (!pos) {
+    panel.style.left = panel.style.top = '';
+    panel.style.right = panel.style.bottom = '';
+    return;
+  }
+  // 画面サイズ（回転）が変わっても画面内に収まるよう割合で保存し、はみ出しは補正
+  const maxX = Math.max(0, window.innerWidth - panel.offsetWidth);
+  const maxY = Math.max(0, window.innerHeight - panel.offsetHeight);
+  panel.style.right = panel.style.bottom = 'auto';
+  panel.style.left = Math.min(maxX, Math.max(0, pos.x * window.innerWidth)) + 'px';
+  panel.style.top = Math.min(maxY, Math.max(0, pos.y * window.innerHeight)) + 'px';
+}
+
+function resetFeedPanelPosition() {
+  localStorage.removeItem('pf_feed_pos');
+  applyFeedPanelPosition();
+}
+
+function initFeedPanelDrag() {
+  const panel = document.getElementById('feed-panel');
+  let start = null;
+  const point = e => (e.touches ? e.touches[0] : e);
+
+  const onStart = e => {
+    e.stopPropagation(); // 写真のスワイプ操作と区別する
+    const p = point(e);
+    const rect = panel.getBoundingClientRect();
+    start = { x: p.clientX, y: p.clientY, left: rect.left, top: rect.top, moved: false };
+  };
+  const onMove = e => {
+    if (!start) return;
+    e.stopPropagation();
+    const p = point(e);
+    const dx = p.clientX - start.x;
+    const dy = p.clientY - start.y;
+    if (!start.moved && Math.hypot(dx, dy) < 8) return;
+    start.moved = true;
+    panel.classList.add('dragging');
+    const maxX = window.innerWidth - panel.offsetWidth;
+    const maxY = window.innerHeight - panel.offsetHeight;
+    panel.style.right = panel.style.bottom = 'auto';
+    panel.style.left = Math.min(maxX, Math.max(0, start.left + dx)) + 'px';
+    panel.style.top = Math.min(maxY, Math.max(0, start.top + dy)) + 'px';
+  };
+  const onEnd = e => {
+    if (!start) return;
+    e.stopPropagation();
+    if (start.moved) {
+      const rect = panel.getBoundingClientRect();
+      localStorage.setItem('pf_feed_pos', JSON.stringify({
+        x: rect.left / window.innerWidth,
+        y: rect.top / window.innerHeight
+      }));
+    }
+    panel.classList.remove('dragging');
+    start = null;
+  };
+
+  panel.addEventListener('touchstart', onStart, { passive: true });
+  panel.addEventListener('touchmove', onMove, { passive: true });
+  panel.addEventListener('touchend', onEnd);
+  panel.addEventListener('mousedown', onStart);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onEnd);
+  window.addEventListener('resize', () => {
+    if (panel.classList.contains('visible')) applyFeedPanelPosition();
+  });
 }
 
 // ===== INIT =====
@@ -1397,6 +1672,8 @@ function init() {
   document.getElementById('night-end').value = localStorage.getItem('pf_night_end') ?? 7;
   document.getElementById('gas-url').value = localStorage.getItem('pf_gas_url') || '';
   document.getElementById('gas-key').value = localStorage.getItem('pf_gas_key') || '';
+  document.getElementById('feed-enabled').checked = !!localStorage.getItem('pf_feed_enabled');
+  initFeedPanelDrag();
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
   if (savedClientId) showScreen(2);
