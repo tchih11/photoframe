@@ -1078,6 +1078,7 @@ function getImageUrl(fileId) {
 // 未設定の場合は従来どおり lh3 のURLを直接使う
 const IMAGE_SIZE = 2048;
 const IMAGE_CACHE_MAX = 20; // スワイプで戻ったときにすぐ出せるよう、直近の画像を多めに保持
+const PRELOAD_AHEAD = 3;    // 先読みする枚数
 const imageCache = new Map(); // fileId → Promise<表示用URL>
 let slideSeq = 0;
 let fastTransition = false; // スワイプ時はフェードを短くする
@@ -1220,7 +1221,7 @@ function toggleSortMode() {
   currentYearCount = 0;
   applyCurrentGroup();
   const photo = getNextPhoto();
-  if (photo) { recordHistory(photo); showSlide(photo); resetProgressBar(); }
+  if (photo) { recordHistory(photo); showCurrent(); resetProgressBar(); }
 }
 
 // ===== SLIDESHOW =====
@@ -1289,7 +1290,7 @@ async function startSlideshow() {
   setPaused(false);
   const firstPhoto = getNextPhoto();
   recordHistory(firstPhoto);
-  await showSlide(firstPhoto);
+  await showCurrent();
   if (!slideRendered) {
     // 1枚目の取得に失敗：読み込み画面に理由を出したまま、次の写真で再挑戦する
     document.getElementById('loading').querySelector('.loading-text').textContent =
@@ -1353,17 +1354,17 @@ function buildSlides() {
   }
 }
 
-function showSlide(photo) {
+function showSlide(photo, hudText) {
   const seq = ++slideSeq;
   return loadImageUrl(photo.id)
     .then(url => {
       if (seq !== slideSeq) return; // 読み込み中に次の写真へ進んだら破棄
-      renderSlide(photo, url);
+      renderSlide(photo, url, hudText);
     })
     .catch(e => console.error('画像の取得に失敗しました:', photo.id, e));
 }
 
-function renderSlide(photo, url) {
+function renderSlide(photo, url, hudText) {
   document.getElementById('slideshow').classList.toggle('fast', fastTransition);
   fastTransition = false;
   if (!slideRendered) {
@@ -1387,11 +1388,8 @@ function renderSlide(photo, url) {
     activeLayer = nextLayer;
   });
 
-  // HUD：年ラベルと枚数
-  const group = activeGroup();
-  const total = allMode ? group._display.length : Math.min(photosPerYear, group.photos.length);
-  document.getElementById('hud-counter').textContent =
-    `${group.label}　${currentYearCount} / ${total}`;
+  // HUD：年ラベルと枚数（履歴をたどるときは、その写真を最初に出したときの番号）
+  document.getElementById('hud-counter').textContent = hudText || currentHudText();
   document.getElementById('hud-interval').textContent = `${intervalSec}秒ごとに切り替え`;
 
   // 撮影日時と子どもの年齢の表示
@@ -1418,10 +1416,14 @@ function renderSlide(photo, url) {
     dateEl.classList.remove('visible');
   }
 
-  // 次に表示する写真をプリロード
+  // この先に表示する写真をプリロード（続けて進んでも待たずに出せるよう数枚先まで）
   const display = activeGroup()._display;
-  const next = display && display[currentYearCount];
-  if (next) preloadImage(next.id);
+  if (display) {
+    for (let i = 0; i < PRELOAD_AHEAD; i++) {
+      const next = display[currentYearCount + i];
+      if (next) preloadImage(next.id);
+    }
+  }
 }
 
 function startTimer() {
@@ -1485,7 +1487,7 @@ function selectAllMode() {
   currentYearCount = 0;
   applyCurrentGroup();
   const photo = getNextPhoto();
-  if (photo) { recordHistory(photo); showSlide(photo); resetProgressBar(); }
+  if (photo) { recordHistory(photo); showCurrent(); resetProgressBar(); }
 }
 
 function selectAlbum(index) {
@@ -1495,7 +1497,7 @@ function selectAlbum(index) {
   currentYearCount = 0;
   applyCurrentGroup();
   const photo = getNextPhoto();
-  if (photo) { recordHistory(photo); showSlide(photo); resetProgressBar(); }
+  if (photo) { recordHistory(photo); showCurrent(); resetProgressBar(); }
 }
 
 // ポップアップ外タップで閉じる
@@ -1540,10 +1542,25 @@ const photoHistory = []; // 表示した写真の履歴
 const MAX_HISTORY = 50; // 最大履歴件数
 let historyPos = -1;    // photoHistory の中で今表示している位置
 
+// 「2023年　12 / 100」のようなHUDの表示（今選んだ写真の番号）
+function currentHudText() {
+  const group = activeGroup();
+  if (!group) return '';
+  const total = allMode ? (group._display ? group._display.length : 0) : Math.min(photosPerYear, group.photos.length);
+  return `${group.label}　${currentYearCount} / ${total}`;
+}
+
+// 履歴の現在位置の写真を表示
+function showCurrent() {
+  const entry = photoHistory[historyPos];
+  return entry ? showSlide(entry.photo, entry.hud) : Promise.resolve();
+}
+
 // 新しい写真を履歴の末尾に追加して現在位置にする（戻っていた場合は先の履歴を捨てる）
+// HUDの番号も一緒に覚えておき、履歴をたどるときに同じ番号を出す
 function recordHistory(photo) {
   photoHistory.splice(historyPos + 1);
-  photoHistory.push(photo);
+  photoHistory.push({ photo, hud: currentHudText() });
   if (photoHistory.length > MAX_HISTORY) photoHistory.shift();
   historyPos = photoHistory.length - 1;
 }
@@ -1552,13 +1569,13 @@ function recordHistory(photo) {
 function advancePhoto() {
   if (historyPos < photoHistory.length - 1) {
     historyPos++;
-    showSlide(photoHistory[historyPos]);
+    showCurrent();
     return;
   }
   const photo = getNextPhoto();
   if (photo) {
     recordHistory(photo);
-    showSlide(photo);
+    showCurrent();
   }
 }
 
@@ -1572,8 +1589,8 @@ function goPrev() {
   if (historyPos <= 0) return;
   fastTransition = true;
   historyPos--;
-  showSlide(photoHistory[historyPos]);
-  if (historyPos > 0) preloadImage(photoHistory[historyPos - 1].id); // さらに前の写真も先読み
+  showCurrent();
+  if (historyPos > 0) preloadImage(photoHistory[historyPos - 1].photo.id); // さらに前の写真も先読み
   resetProgressBar();
 }
 
