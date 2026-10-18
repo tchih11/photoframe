@@ -214,6 +214,32 @@
   }
   #hud.visible { opacity: 1; pointer-events: all; }
 
+  /* 前後ボタン（HUDと一緒に表示） */
+  .nav-btn {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 44px;
+    line-height: 1;
+    padding-bottom: 6px;
+    z-index: 60;
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-btn.visible { opacity: 1; pointer-events: all; }
+  .nav-btn:active { background: rgba(0, 0, 0, 0.45); }
+  #nav-prev { left: 24px; }
+  #nav-next { right: 24px; }
+
   /* アルバム選択ポップアップ */
   #album-popup {
     position: fixed;
@@ -492,6 +518,9 @@
 
 <div id="album-popup"></div>
 
+<button class="nav-btn" id="nav-prev" onclick="goPrev()" aria-label="前の写真">‹</button>
+<button class="nav-btn" id="nav-next" onclick="goNext()" aria-label="次の写真">›</button>
+
 <div id="hud">
   <div class="hud-info">
     <strong id="hud-counter">–</strong>
@@ -512,7 +541,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.11.0</div>
+    <div class="version">v1.12.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -535,7 +564,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.11.0</div>
+    <div class="version">v1.12.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -558,7 +587,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.11.0</div>
+    <div class="version">v1.12.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -1613,17 +1642,17 @@ function initSwipe() {
 }
 
 function showHud() {
-  const hud = document.getElementById('hud');
-  hud.classList.add('visible');
+  const els = [document.getElementById('hud'), document.getElementById('nav-prev'), document.getElementById('nav-next')];
+  els.forEach(el => el.classList.add('visible'));
   clearTimeout(hudTimeout);
-  hudTimeout = setTimeout(() => hud.classList.remove('visible'), 3000);
+  hudTimeout = setTimeout(() => els.forEach(el => el.classList.remove('visible')), 3000);
 }
 
 function goToSetup() {
   clearInterval(slideTimer);
   stopFeedPanel();
   document.getElementById('slideshow').innerHTML = '';
-  document.getElementById('hud').classList.remove('visible');
+  ['hud', 'nav-prev', 'nav-next'].forEach(id => document.getElementById(id).classList.remove('visible'));
   document.getElementById('setup').style.display = 'flex';
   showScreen(3);
 }
