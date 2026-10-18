@@ -419,7 +419,6 @@
   .feed-value { display: flex; align-items: baseline; gap: 12px; }
   .feed-big { font-size: 52px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .feed-big.warn { color: #ff453a; }
-  .feed-day { font-size: 20px; font-weight: 700; margin-right: 8px; }
   .feed-detail { font-size: 20px; font-weight: 700; }
   .feed-detail .formula { color: #6aa8f0; }
   .feed-detail .nursing { color: #ff8a5c; }
@@ -1520,21 +1519,9 @@ function formatElapsedBig(minutes) {
   return (totalHours > 99 ? '99+' : String(totalHours)) + ':' + String(minutes % 60).padStart(2, '0');
 }
 
-// 時刻を表示。今日 → "05:20"、昨日 → "昨日"+"05:20"、それ以前 → "10/16"+"19:40"（日付部分は小さく）
-function renderFeedClock(el, date, now) {
-  el.textContent = '';
-  if (!date) { el.textContent = '--:--'; return; }
-  let day = '';
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  if (date.toDateString() === yesterday.toDateString()) day = '昨日';
-  else if (date.toDateString() !== now.toDateString()) day = `${date.getMonth() + 1}/${date.getDate()}`;
-  if (day) {
-    const d = document.createElement('span');
-    d.className = 'feed-day';
-    d.textContent = day;
-    el.appendChild(d);
-  }
-  el.appendChild(document.createTextNode(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`));
+function formatFeedClock(date) {
+  if (!date) return '--:--';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function renderFeedPanel() {
@@ -1550,7 +1537,7 @@ function renderFeedPanel() {
 
   const feedAt = parseFeedTime(f.lastAt);
   const feedMin = minutesSinceTime(feedAt, now);
-  renderFeedClock(document.getElementById('feed-last-time'), feedAt, now);
+  document.getElementById('feed-last-time').textContent = formatFeedClock(feedAt);
   const detailEl = document.getElementById('feed-last-detail');
   detailEl.textContent = '';
   if (f.lastCategory) {
