@@ -394,35 +394,36 @@
     right: 32px; top: 32px;
     z-index: 55; /* 夜間オーバーレイ(50)より上、HUD(60)より下 */
     display: none;
-    gap: 28px;
-    padding: 24px 30px 22px;
-    background: rgba(0, 0, 0, 0.62);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 28px 14px;
+    /* 時計と同じガラス風 */
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: 24px;
-    color: #fff;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    transition: opacity 0.6s, background 0.6s, border-color 0.6s;
+    transition: opacity 0.6s, background 0.6s;
   }
   #feed-panel.visible { display: flex; }
   #feed-panel.dragging { opacity: 0.75; transition: none; }
   /* 夜間は写真を隠し、授乳パネルだけを暗めに表示 */
-  #night-overlay.on ~ #feed-panel { opacity: 0.55; background: transparent; border-color: transparent; }
-  .feed-col { min-width: 200px; }
-  .feed-divider { width: 1px; background: rgba(255, 255, 255, 0.15); }
-  .feed-label { font-size: 15px; font-weight: 600; color: rgba(235, 235, 245, 0.62); margin-bottom: 6px; }
-  .feed-time { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .feed-detail { font-size: 20px; font-weight: 700; margin-top: 2px; min-height: 26px; }
-  .feed-detail .formula { color: #3987e5; }
-  .feed-detail .nursing { color: #d95926; }
-  .feed-elapsed-label { font-size: 13px; font-weight: 600; color: rgba(235, 235, 245, 0.48); margin-top: 12px; }
-  .feed-elapsed { font-size: 52px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
-  .feed-elapsed.warn { color: #ff453a; }
-  .feed-status { position: absolute; top: 9px; right: 16px; font-size: 11px; color: rgba(235, 235, 245, 0.48); }
+  #night-overlay.on ~ #feed-panel { opacity: 0.55; background: transparent; }
+  .feed-item { display: flex; flex-direction: column; }
+  .feed-label { font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.75); margin-bottom: 2px; }
+  .feed-value { display: flex; align-items: baseline; gap: 12px; }
+  .feed-big { font-size: 52px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .feed-big.warn { color: #ff453a; }
+  .feed-day { font-size: 20px; font-weight: 700; margin-right: 8px; }
+  .feed-detail { font-size: 20px; font-weight: 700; }
+  .feed-detail .formula { color: #6aa8f0; }
+  .feed-detail .nursing { color: #ff8a5c; }
+  .feed-status { position: absolute; top: 7px; right: 14px; font-size: 11px; color: rgba(255, 255, 255, 0.6); }
   .feed-status.error { color: #ff453a; }
   .check-field { display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; }
   .check-field input { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -439,20 +440,17 @@
 
 <div id="feed-panel">
   <div class="feed-status" id="feed-status"></div>
-  <div class="feed-col">
+  <div class="feed-item">
     <div class="feed-label">前回の授乳</div>
-    <div class="feed-time" id="feed-last-time">--:--</div>
-    <div class="feed-detail" id="feed-last-detail"></div>
-    <div class="feed-elapsed-label">経過時間</div>
-    <div class="feed-elapsed" id="feed-elapsed">--:--</div>
+    <div class="feed-value"><span class="feed-big" id="feed-last-time">--:--</span><span class="feed-detail" id="feed-last-detail"></span></div>
   </div>
-  <div class="feed-divider"></div>
-  <div class="feed-col">
-    <div class="feed-label">前回のミルポン</div>
-    <div class="feed-time" id="milpon-time">--:--</div>
-    <div class="feed-detail"></div>
-    <div class="feed-elapsed-label">経過時間</div>
-    <div class="feed-elapsed" id="milpon-elapsed">--:--</div>
+  <div class="feed-item">
+    <div class="feed-label">授乳からの経過時間</div>
+    <div class="feed-value"><span class="feed-big" id="feed-elapsed">--:--</span></div>
+  </div>
+  <div class="feed-item">
+    <div class="feed-label">ミルポンの経過時間</div>
+    <div class="feed-value"><span class="feed-big" id="milpon-elapsed">--:--</span></div>
   </div>
 </div>
 
@@ -485,7 +483,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.7.1</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -507,7 +505,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.7.1</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -530,7 +528,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.7.1</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -1522,14 +1520,21 @@ function formatElapsedBig(minutes) {
   return (totalHours > 99 ? '99+' : String(totalHours)) + ':' + String(minutes % 60).padStart(2, '0');
 }
 
-// 今日 → "05:20"、昨日 → "昨日 05:20"、それ以前 → "10/16 19:40"
-function formatFeedClock(date, now) {
-  if (!date) return '--:--';
-  const hm = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  if (date.toDateString() === now.toDateString()) return hm;
+// 時刻を表示。今日 → "05:20"、昨日 → "昨日"+"05:20"、それ以前 → "10/16"+"19:40"（日付部分は小さく）
+function renderFeedClock(el, date, now) {
+  el.textContent = '';
+  if (!date) { el.textContent = '--:--'; return; }
+  let day = '';
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  if (date.toDateString() === yesterday.toDateString()) return `昨日 ${hm}`;
-  return `${date.getMonth() + 1}/${date.getDate()} ${hm}`;
+  if (date.toDateString() === yesterday.toDateString()) day = '昨日';
+  else if (date.toDateString() !== now.toDateString()) day = `${date.getMonth() + 1}/${date.getDate()}`;
+  if (day) {
+    const d = document.createElement('span');
+    d.className = 'feed-day';
+    d.textContent = day;
+    el.appendChild(d);
+  }
+  el.appendChild(document.createTextNode(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`));
 }
 
 function renderFeedPanel() {
@@ -1545,7 +1550,7 @@ function renderFeedPanel() {
 
   const feedAt = parseFeedTime(f.lastAt);
   const feedMin = minutesSinceTime(feedAt, now);
-  document.getElementById('feed-last-time').textContent = formatFeedClock(feedAt, now);
+  renderFeedClock(document.getElementById('feed-last-time'), feedAt, now);
   const detailEl = document.getElementById('feed-last-detail');
   detailEl.textContent = '';
   if (f.lastCategory) {
@@ -1564,7 +1569,6 @@ function renderFeedPanel() {
 
   const milponAt = parseFeedTime(baby.milpon && baby.milpon.lastAt);
   const milponMin = minutesSinceTime(milponAt, now);
-  document.getElementById('milpon-time').textContent = formatFeedClock(milponAt, now);
   const milponEl = document.getElementById('milpon-elapsed');
   milponEl.textContent = formatElapsedBig(milponMin);
   milponEl.classList.toggle('warn', milponMin != null && milponMin >= MILPON_WARN_MINUTES);
