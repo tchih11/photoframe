@@ -183,20 +183,42 @@ function getPhotoList_() {
 }
 
 function fetchPhotoList_() {
-  const photos = [];
+  const files = [];
   let pageToken;
   do {
     const res = Drive.Files.list({
       q: `'${FOLDER_ID}' in parents and mimeType contains 'image/' and trashed = false`,
-      fields: 'nextPageToken, files(id, imageMediaMetadata(time))',
+      fields: 'nextPageToken, files(id, md5Checksum, size, imageMediaMetadata(time))',
       pageSize: 1000,
       pageToken
     });
-    (res.files || []).forEach(f => {
-      photos.push([f.id, (f.imageMediaMetadata && f.imageMediaMetadata.time) || '']);
-    });
+    (res.files || []).forEach(f => files.push(f));
     pageToken = res.nextPageToken;
   } while (pageToken);
+  return dedupePhotos_(files);
+}
+
+// 重複を除いて [[id, exifTime], ...] にする（ドライブ上のファイルは消さない）
+//  1. 中身がまったく同じファイル（md5Checksum が同じ）
+//  2. 撮影日時が秒まで同じ写真（Googleフォト経由の再圧縮コピーなど。連写も1枚になる）
+// どちらもファイルサイズが大きい（画質が良い）方を残す
+function dedupePhotos_(files) {
+  const sorted = files.slice().sort((a, b) => Number(b.size || 0) - Number(a.size || 0));
+  const seenMd5 = {};
+  const seenTime = {};
+  const photos = [];
+  sorted.forEach(f => {
+    const time = (f.imageMediaMetadata && f.imageMediaMetadata.time) || '';
+    if (f.md5Checksum) {
+      if (seenMd5[f.md5Checksum]) return;
+      seenMd5[f.md5Checksum] = true;
+    }
+    if (time) {
+      if (seenTime[time]) return;
+      seenTime[time] = true;
+    }
+    photos.push([f.id, time]);
+  });
   return photos;
 }
 
@@ -217,7 +239,7 @@ function testFeeding() {
 // 動作確認用：エディタから実行してログを見る
 function test() {
   const photos = getPhotoList_();
-  console.log('写真の枚数: ' + photos.length);
+  console.log('写真の枚数（重複を除く）: ' + photos.length);
   const res = JSON.parse(doGet({ parameter: { key: SECRET } }).getContent());
   if (res.error) {
     console.log('画像の取得に失敗: ' + res.error);
