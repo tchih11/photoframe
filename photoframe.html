@@ -472,7 +472,6 @@
     <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
     <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortMode()">🔀 ランダム</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
-    <button class="hud-btn" id="feed-reset-btn" onclick="resetFeedPanelPosition()" style="display:none">📍 授乳パネルを元の位置へ</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
 </div>
@@ -483,7 +482,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.9.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -506,7 +505,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.9.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -529,7 +528,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.9.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -606,6 +605,13 @@ let feedEnabled = false;
 let yearGroups = [];      // [{year, photos: [...]}, ...]
 let currentYearIndex = 0;
 let currentYearCount = 0; // 現在の年グループで表示した枚数
+// 全期間ランダム：年に関係なく全写真から出す（アルバム選択で切り替え、設定は保存）
+let allMode = false;
+const allGroup = { label: '全期間', photos: [], _display: null };
+
+function activeGroup() {
+  return allMode ? allGroup : yearGroups[currentYearIndex];
+}
 let nightStart = 22;
 let nightEnd = 7;
 let nightManualOverride = null;
@@ -1070,6 +1076,13 @@ function sortByDate(photos) {
 
 // 現在のグループにソートモードを適用（100枚をランダム選出→必要に応じて日付順）
 function applyCurrentGroup() {
+  if (allMode) {
+    // 全期間：全写真をシャッフル（年あたりの枚数制限なし）。日付順なら全写真を撮影日時順に
+    allGroup.photos = yearGroups.flatMap(g => g.photos);
+    const pool = shuffle([...allGroup.photos]);
+    allGroup._display = sortMode === 'date' ? sortByDate(pool) : pool;
+    return;
+  }
   const group = yearGroups[currentYearIndex];
   // まずシャッフルして100枚を選出
   const pool = shuffle([...group.photos]).slice(0, photosPerYear);
@@ -1079,6 +1092,15 @@ function applyCurrentGroup() {
 
 function getNextPhoto() {
   if (yearGroups.length === 0) return null;
+
+  if (allMode) {
+    // 全写真を出し終えたらシャッフルし直して最初から
+    if (!allGroup._display || currentYearCount >= allGroup._display.length) {
+      applyCurrentGroup();
+      currentYearCount = 0;
+    }
+    return allGroup._display[currentYearCount++];
+  }
 
   const group = yearGroups[currentYearIndex];
 
@@ -1168,6 +1190,7 @@ async function startSlideshow() {
   yearGroups = groupByYear(initialPhotos);
   currentYearIndex = 0;
   currentYearCount = 0;
+  allGroup._display = null;
 
   buildSlides();
   slideRendered = false;
@@ -1260,8 +1283,8 @@ function renderSlide(photo, url) {
   });
 
   // HUD：年ラベルと枚数
-  const group = yearGroups[currentYearIndex];
-  const total = Math.min(photosPerYear, group.photos.length);
+  const group = activeGroup();
+  const total = allMode ? group._display.length : Math.min(photosPerYear, group.photos.length);
   document.getElementById('hud-counter').textContent =
     `${group.label}　${currentYearCount} / ${total}`;
   document.getElementById('hud-interval').textContent = `${intervalSec}秒ごとに切り替え`;
@@ -1291,7 +1314,7 @@ function renderSlide(photo, url) {
   }
 
   // 次に表示する写真をプリロード
-  const display = yearGroups[currentYearIndex]._display;
+  const display = activeGroup()._display;
   const next = display && display[currentYearCount];
   if (next) preloadImage(next.id);
 }
@@ -1331,9 +1354,18 @@ function toggleAlbumPopup() {
 
   // ポップアップの中身を構築
   popup.innerHTML = '';
+  const allItem = document.createElement('div');
+  allItem.className = 'album-popup-item' + (allMode ? ' current' : '');
+  allItem.textContent = '🎲 全期間ランダム';
+  allItem.onclick = () => {
+    selectAllMode();
+    popup.classList.remove('visible');
+  };
+  popup.appendChild(allItem);
+
   yearGroups.forEach((group, i) => {
     const item = document.createElement('div');
-    item.className = 'album-popup-item' + (i === currentYearIndex ? ' current' : '');
+    item.className = 'album-popup-item' + (!allMode && i === currentYearIndex ? ' current' : '');
     item.textContent = group.label || '　';
     item.onclick = () => {
       selectAlbum(i);
@@ -1345,7 +1377,18 @@ function toggleAlbumPopup() {
   popup.classList.add('visible');
 }
 
+function selectAllMode() {
+  allMode = true;
+  localStorage.setItem('pf_all_mode', '1');
+  currentYearCount = 0;
+  applyCurrentGroup();
+  const photo = getNextPhoto();
+  if (photo) { recordHistory(photo); showSlide(photo); resetProgressBar(); }
+}
+
 function selectAlbum(index) {
+  allMode = false;
+  localStorage.removeItem('pf_all_mode');
   currentYearIndex = index;
   currentYearCount = 0;
   applyCurrentGroup();
@@ -1496,7 +1539,6 @@ let feedTickTimer = null;
 function startFeedPanel() {
   stopFeedPanel();
   document.getElementById('feed-panel').classList.add('visible');
-  document.getElementById('feed-reset-btn').style.display = '';
   applyFeedPanelPosition();
   fetchFeeding();
   scheduleFeedFetch();
@@ -1507,7 +1549,6 @@ function stopFeedPanel() {
   clearTimeout(feedFetchTimer);
   clearInterval(feedTickTimer);
   document.getElementById('feed-panel').classList.remove('visible');
-  document.getElementById('feed-reset-btn').style.display = 'none';
 }
 
 function scheduleFeedFetch() {
@@ -1626,11 +1667,6 @@ function applyFeedPanelPosition() {
   panel.style.top = Math.min(maxY, Math.max(0, pos.y * window.innerHeight)) + 'px';
 }
 
-function resetFeedPanelPosition() {
-  localStorage.removeItem('pf_feed_pos');
-  applyFeedPanelPosition();
-}
-
 function initFeedPanelDrag() {
   const panel = document.getElementById('feed-panel');
   let start = null;
@@ -1701,6 +1737,8 @@ function init() {
   initFeedPanelDrag();
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
+  allMode = !!localStorage.getItem('pf_all_mode');
+  document.getElementById('sort-toggle-btn').textContent = sortMode === 'random' ? '🔀 ランダム' : '📅 日付順';
 
   // Apps Scriptが設定済みなら、ログインなしでそのままスライドショーを開始
   if (localStorage.getItem('pf_gas_url') && localStorage.getItem('pf_gas_key')) {
