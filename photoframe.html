@@ -394,35 +394,35 @@
     right: 32px; top: 32px;
     z-index: 55; /* 夜間オーバーレイ(50)より上、HUD(60)より下 */
     display: none;
-    gap: 28px;
-    padding: 24px 30px 22px;
-    background: rgba(0, 0, 0, 0.62);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 28px 14px;
+    /* 時計と同じガラス風 */
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: 24px;
-    color: #fff;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    transition: opacity 0.6s, background 0.6s, border-color 0.6s;
+    transition: opacity 0.6s, background 0.6s;
   }
   #feed-panel.visible { display: flex; }
   #feed-panel.dragging { opacity: 0.75; transition: none; }
   /* 夜間は写真を隠し、授乳パネルだけを暗めに表示 */
-  #night-overlay.on ~ #feed-panel { opacity: 0.55; background: transparent; border-color: transparent; }
-  .feed-col { min-width: 200px; }
-  .feed-divider { width: 1px; background: rgba(255, 255, 255, 0.15); }
-  .feed-label { font-size: 15px; font-weight: 600; color: rgba(235, 235, 245, 0.62); margin-bottom: 6px; }
-  .feed-time { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .feed-detail { font-size: 20px; font-weight: 700; margin-top: 2px; min-height: 26px; }
-  .feed-detail .formula { color: #3987e5; }
-  .feed-detail .nursing { color: #d95926; }
-  .feed-elapsed-label { font-size: 13px; font-weight: 600; color: rgba(235, 235, 245, 0.48); margin-top: 12px; }
-  .feed-elapsed { font-size: 52px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
-  .feed-elapsed.warn { color: #ff453a; }
-  .feed-status { position: absolute; top: 9px; right: 16px; font-size: 11px; color: rgba(235, 235, 245, 0.48); }
+  #night-overlay.on ~ #feed-panel { opacity: 0.55; background: transparent; }
+  .feed-item { display: flex; flex-direction: column; }
+  .feed-label { font-size: 15px; font-weight: 600; color: rgba(255, 255, 255, 0.75); margin-bottom: 2px; }
+  .feed-value { display: flex; align-items: baseline; gap: 12px; }
+  .feed-big { font-size: 52px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .feed-big.warn { color: #ff453a; }
+  .feed-detail { font-size: 20px; font-weight: 700; }
+  .feed-detail .formula { color: #6aa8f0; }
+  .feed-detail .nursing { color: #ff8a5c; }
+  .feed-status { position: absolute; top: 7px; right: 14px; font-size: 11px; color: rgba(255, 255, 255, 0.6); }
   .feed-status.error { color: #ff453a; }
   .check-field { display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; }
   .check-field input { width: 18px; height: 18px; accent-color: var(--accent); }
@@ -439,20 +439,17 @@
 
 <div id="feed-panel">
   <div class="feed-status" id="feed-status"></div>
-  <div class="feed-col">
+  <div class="feed-item">
     <div class="feed-label">前回の授乳</div>
-    <div class="feed-time" id="feed-last-time">--:--</div>
-    <div class="feed-detail" id="feed-last-detail"></div>
-    <div class="feed-elapsed-label">経過時間</div>
-    <div class="feed-elapsed" id="feed-elapsed">--:--</div>
+    <div class="feed-value"><span class="feed-big" id="feed-last-time">--:--</span><span class="feed-detail" id="feed-last-detail"></span></div>
   </div>
-  <div class="feed-divider"></div>
-  <div class="feed-col">
-    <div class="feed-label">前回のミルポン</div>
-    <div class="feed-time" id="milpon-time">--:--</div>
-    <div class="feed-detail"></div>
-    <div class="feed-elapsed-label">経過時間</div>
-    <div class="feed-elapsed" id="milpon-elapsed">--:--</div>
+  <div class="feed-item">
+    <div class="feed-label">授乳からの経過時間</div>
+    <div class="feed-value"><span class="feed-big" id="feed-elapsed">--:--</span></div>
+  </div>
+  <div class="feed-item">
+    <div class="feed-label">ミルポンの経過時間</div>
+    <div class="feed-value"><span class="feed-big" id="milpon-elapsed">--:--</span></div>
   </div>
 </div>
 
@@ -485,7 +482,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -499,6 +496,7 @@
       </div>
     </div>
     <button class="btn" onclick="nextStep(1)">次へ</button>
+    <button class="btn btn-ghost" onclick="showScreen(3)">Googleログインなしで設定（Apps Script）</button>
     <div class="error-msg" id="err-1"></div>
     <div class="hint">Google Cloud ConsoleのOAuth 2.0クライアントIDを入力してください</div>
   </div>
@@ -507,7 +505,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -530,7 +528,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.0</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -875,6 +873,12 @@ async function fetchPhotosBatch(pageToken = '') {
 
 // 初回：最初の100件だけ取得
 async function fetchInitialPhotos() {
+  if (gasUrl) {
+    const fromGas = await fetchPhotosFromGas();
+    if (fromGas) return fromGas;
+    // Apps Scriptが写真一覧に未対応（古いバージョン）：従来どおりGoogleログインで一覧を取得
+    if (!accessToken || !folderId) return { photos: [], nextPageToken: '', needLogin: true };
+  }
   try {
     const data = await fetchPhotosBatch();
     if (!data) return { photos: [], nextPageToken: '' };
@@ -884,6 +888,23 @@ async function fetchInitialPhotos() {
     };
   } catch(e) {
     console.error('fetchInitialPhotos error:', e);
+    return { photos: [], nextPageToken: '' };
+  }
+}
+
+// Apps Script経由で全件を一度に取得（Googleログイン不要）
+async function fetchPhotosFromGas() {
+  try {
+    const res = await fetch(`${gasUrl}?key=${encodeURIComponent(gasKey)}&action=list`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (!Array.isArray(data.photos)) return null; // 古いApps Script（action=list 未対応）
+    const photos = data.photos.map(([id, time]) => ({ id, imageMediaMetadata: time ? { time } : undefined }));
+    return { photos, nextPageToken: '' };
+  } catch (e) {
+    console.error('fetchPhotosFromGas error:', e);
+    setErr(3, '写真一覧を取得できませんでした（' + e.message + '）。ウェブアプリURLと合言葉を確認してください。');
     return { photos: [], nextPageToken: '' };
   }
 }
@@ -1093,7 +1114,8 @@ function toggleSortMode() {
 // ===== SLIDESHOW =====
 async function startSlideshow() {
   folderId = document.getElementById('folder-id').value.trim();
-  if (!folderId) { setErr(3, 'フォルダIDを入力してください'); return; }
+  // Apps Scriptを使う場合、フォルダIDはApps Script側の設定を使うので不要
+  if (!folderId && !document.getElementById('gas-url').value.trim()) { setErr(3, 'フォルダIDを入力してください'); return; }
 
   photosPerYear = parseInt(document.getElementById('photos-per-year').value) || 100;
   intervalSec = parseInt(document.getElementById('interval').value) || 15;
@@ -1123,7 +1145,15 @@ async function startSlideshow() {
   document.getElementById('setup').style.display = 'none';
 
   // 初回100件取得
-  const { photos: initialPhotos, nextPageToken } = await fetchInitialPhotos();
+  const { photos: initialPhotos, nextPageToken, needLogin } = await fetchInitialPhotos();
+  if (needLogin) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('setup').style.display = 'flex';
+    showScreen(2);
+    document.getElementById('auth-status').textContent =
+      'Googleでログインしてください（Apps Scriptを最新版にするとログイン不要になります）';
+    return;
+  }
   if (initialPhotos.length === 0) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('setup').style.display = 'flex';
@@ -1522,14 +1552,9 @@ function formatElapsedBig(minutes) {
   return (totalHours > 99 ? '99+' : String(totalHours)) + ':' + String(minutes % 60).padStart(2, '0');
 }
 
-// 今日 → "05:20"、昨日 → "昨日 05:20"、それ以前 → "10/16 19:40"
-function formatFeedClock(date, now) {
+function formatFeedClock(date) {
   if (!date) return '--:--';
-  const hm = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-  if (date.toDateString() === now.toDateString()) return hm;
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  if (date.toDateString() === yesterday.toDateString()) return `昨日 ${hm}`;
-  return `${date.getMonth() + 1}/${date.getDate()} ${hm}`;
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function renderFeedPanel() {
@@ -1545,7 +1570,7 @@ function renderFeedPanel() {
 
   const feedAt = parseFeedTime(f.lastAt);
   const feedMin = minutesSinceTime(feedAt, now);
-  document.getElementById('feed-last-time').textContent = formatFeedClock(feedAt, now);
+  document.getElementById('feed-last-time').textContent = formatFeedClock(feedAt);
   const detailEl = document.getElementById('feed-last-detail');
   detailEl.textContent = '';
   if (f.lastCategory) {
@@ -1564,7 +1589,6 @@ function renderFeedPanel() {
 
   const milponAt = parseFeedTime(baby.milpon && baby.milpon.lastAt);
   const milponMin = minutesSinceTime(milponAt, now);
-  document.getElementById('milpon-time').textContent = formatFeedClock(milponAt, now);
   const milponEl = document.getElementById('milpon-elapsed');
   milponEl.textContent = formatElapsedBig(milponMin);
   milponEl.classList.toggle('warn', milponMin != null && milponMin >= MILPON_WARN_MINUTES);
@@ -1676,6 +1700,13 @@ function init() {
   initFeedPanelDrag();
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
+
+  // Apps Scriptが設定済みなら、ログインなしでそのままスライドショーを開始
+  if (localStorage.getItem('pf_gas_url') && localStorage.getItem('pf_gas_key')) {
+    showScreen(3);
+    startSlideshow();
+    return;
+  }
   if (savedClientId) showScreen(2);
 }
 
