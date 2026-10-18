@@ -472,7 +472,6 @@
     <button class="hud-btn" onclick="toggleAlbumPopup()">📁 アルバム選択</button>
     <button class="hud-btn" id="sort-toggle-btn" onclick="toggleSortMode()">🔀 ランダム</button>
     <button class="hud-btn" id="night-toggle-btn" onclick="toggleNight()">🌙 夜間モード</button>
-    <button class="hud-btn" id="feed-reset-btn" onclick="resetFeedPanelPosition()" style="display:none">📍 授乳パネルを元の位置へ</button>
     <button class="hud-btn" onclick="goToSetup()">設定に戻る</button>
   </div>
 </div>
@@ -483,7 +482,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.8.2</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -506,7 +505,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.8.2</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -529,7 +528,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.8.1</div>
+    <div class="version">v1.8.2</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -1496,7 +1495,6 @@ let feedTickTimer = null;
 function startFeedPanel() {
   stopFeedPanel();
   document.getElementById('feed-panel').classList.add('visible');
-  document.getElementById('feed-reset-btn').style.display = '';
   applyFeedPanelPosition();
   fetchFeeding();
   scheduleFeedFetch();
@@ -1507,7 +1505,6 @@ function stopFeedPanel() {
   clearTimeout(feedFetchTimer);
   clearInterval(feedTickTimer);
   document.getElementById('feed-panel').classList.remove('visible');
-  document.getElementById('feed-reset-btn').style.display = 'none';
 }
 
 function scheduleFeedFetch() {
@@ -1624,11 +1621,6 @@ function applyFeedPanelPosition() {
   panel.style.right = panel.style.bottom = 'auto';
   panel.style.left = Math.min(maxX, Math.max(0, pos.x * window.innerWidth)) + 'px';
   panel.style.top = Math.min(maxY, Math.max(0, pos.y * window.innerHeight)) + 'px';
-}
-
-function resetFeedPanelPosition() {
-  localStorage.removeItem('pf_feed_pos');
-  applyFeedPanelPosition();
 }
 
 function initFeedPanelDrag() {
