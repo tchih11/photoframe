@@ -3,6 +3,7 @@
 // - iPadのScriptableウィジェット（widget/scriptable/PhotoFrameWidget.js）：ランダムに1枚
 // - フォトフレーム本体（photoframe.html）：id=ファイルID で指定した1枚
 // - フォトフレーム本体の授乳パネル：action=feeding で piyolog-dashboard の授乳状況を中継
+// - フォトフレーム本体の写真一覧：action=list（フォトフレーム側のGoogleログインが不要になる）
 
 // ===== 設定 =====
 // 秘密の値はコードに書かず「プロジェクトの設定（⚙）→ スクリプト プロパティ」に保存する。
@@ -21,7 +22,7 @@ const PIYOLOG_ACCESS_CLIENT_SECRET = PROPS.PIYOLOG_ACCESS_CLIENT_SECRET || '';
 
 const DEFAULT_SIZE = 1000;                          // 返す画像の長辺(px)
 const MAX_SIZE = 2048;
-const LIST_CACHE_SECONDS = 6 * 60 * 60;             // 写真一覧のキャッシュ時間（最大6時間）
+const LIST_CACHE_SECONDS = 60 * 60;                 // 写真一覧のキャッシュ時間（新しい写真は最大1時間で反映）
 const FALLBACK_MAX_BYTES = 3 * 1024 * 1024;         // サムネイル取得失敗時に原寸を返す上限
 
 function doGet(e) {
@@ -34,6 +35,15 @@ function doGet(e) {
   if (params.action === 'feeding') {
     try {
       return json_(fetchFeeding_());
+    } catch (err) {
+      return json_({ error: String(err) });
+    }
+  }
+
+  // action=list：写真一覧 [[id, exifTime], ...]
+  if (params.action === 'list') {
+    try {
+      return json_({ photos: getPhotoList_() });
     } catch (err) {
       return json_({ error: String(err) });
     }

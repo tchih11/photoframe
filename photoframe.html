@@ -482,7 +482,7 @@
   <div class="screen active" id="screen-1">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.1</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step active"></div>
       <div class="step"></div>
@@ -496,6 +496,7 @@
       </div>
     </div>
     <button class="btn" onclick="nextStep(1)">次へ</button>
+    <button class="btn btn-ghost" onclick="showScreen(3)">Googleログインなしで設定（Apps Script）</button>
     <div class="error-msg" id="err-1"></div>
     <div class="hint">Google Cloud ConsoleのOAuth 2.0クライアントIDを入力してください</div>
   </div>
@@ -504,7 +505,7 @@
   <div class="screen" id="screen-2">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.1</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step active"></div>
@@ -527,7 +528,7 @@
   <div class="screen" id="screen-3">
     <div class="logo">Photo<span>Frame</span></div>
     <div class="tagline">iPad Digital Frame</div>
-    <div class="version">v1.7.1</div>
+    <div class="version">v1.8.0</div>
     <div class="steps">
       <div class="step"></div>
       <div class="step"></div>
@@ -872,6 +873,12 @@ async function fetchPhotosBatch(pageToken = '') {
 
 // 初回：最初の100件だけ取得
 async function fetchInitialPhotos() {
+  if (gasUrl) {
+    const fromGas = await fetchPhotosFromGas();
+    if (fromGas) return fromGas;
+    // Apps Scriptが写真一覧に未対応（古いバージョン）：従来どおりGoogleログインで一覧を取得
+    if (!accessToken || !folderId) return { photos: [], nextPageToken: '', needLogin: true };
+  }
   try {
     const data = await fetchPhotosBatch();
     if (!data) return { photos: [], nextPageToken: '' };
@@ -881,6 +888,23 @@ async function fetchInitialPhotos() {
     };
   } catch(e) {
     console.error('fetchInitialPhotos error:', e);
+    return { photos: [], nextPageToken: '' };
+  }
+}
+
+// Apps Script経由で全件を一度に取得（Googleログイン不要）
+async function fetchPhotosFromGas() {
+  try {
+    const res = await fetch(`${gasUrl}?key=${encodeURIComponent(gasKey)}&action=list`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (!Array.isArray(data.photos)) return null; // 古いApps Script（action=list 未対応）
+    const photos = data.photos.map(([id, time]) => ({ id, imageMediaMetadata: time ? { time } : undefined }));
+    return { photos, nextPageToken: '' };
+  } catch (e) {
+    console.error('fetchPhotosFromGas error:', e);
+    setErr(3, '写真一覧を取得できませんでした（' + e.message + '）。ウェブアプリURLと合言葉を確認してください。');
     return { photos: [], nextPageToken: '' };
   }
 }
@@ -1090,7 +1114,8 @@ function toggleSortMode() {
 // ===== SLIDESHOW =====
 async function startSlideshow() {
   folderId = document.getElementById('folder-id').value.trim();
-  if (!folderId) { setErr(3, 'フォルダIDを入力してください'); return; }
+  // Apps Scriptを使う場合、フォルダIDはApps Script側の設定を使うので不要
+  if (!folderId && !document.getElementById('gas-url').value.trim()) { setErr(3, 'フォルダIDを入力してください'); return; }
 
   photosPerYear = parseInt(document.getElementById('photos-per-year').value) || 100;
   intervalSec = parseInt(document.getElementById('interval').value) || 15;
@@ -1120,7 +1145,15 @@ async function startSlideshow() {
   document.getElementById('setup').style.display = 'none';
 
   // 初回100件取得
-  const { photos: initialPhotos, nextPageToken } = await fetchInitialPhotos();
+  const { photos: initialPhotos, nextPageToken, needLogin } = await fetchInitialPhotos();
+  if (needLogin) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('setup').style.display = 'flex';
+    showScreen(2);
+    document.getElementById('auth-status').textContent =
+      'Googleでログインしてください（Apps Scriptを最新版にするとログイン不要になります）';
+    return;
+  }
   if (initialPhotos.length === 0) {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('setup').style.display = 'flex';
@@ -1667,6 +1700,13 @@ function init() {
   initFeedPanelDrag();
   loadChildren();
   sortMode = localStorage.getItem('pf_sort_mode') || 'random';
+
+  // Apps Scriptが設定済みなら、ログインなしでそのままスライドショーを開始
+  if (localStorage.getItem('pf_gas_url') && localStorage.getItem('pf_gas_key')) {
+    showScreen(3);
+    startSlideshow();
+    return;
+  }
   if (savedClientId) showScreen(2);
 }
 
