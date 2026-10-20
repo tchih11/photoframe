@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a7c7e7"/><stop offset="1" stop-color="#ffe9d1"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.25"/><stop offset="1" stop-color="#000" stop-opacity="0.25"/></linearGradient>
+</defs>
+      <rect width="1600" height="1200" fill="url(#sky)"/>
+      <circle cx="800" cy="672.0000000000001" r="144" fill="#fff7e0"/>
+      <rect y="696" width="1600" height="504" fill="#5d8aa8"/>
+      <rect y="696" width="1600" height="504" fill="url(#fade)"/>
+      <rect x="1197" y="720" width="276" height="3" rx="2" fill="#fff" opacity="0.25"/><rect x="261" y="756" width="170" height="3" rx="2" fill="#fff" opacity="0.31"/><rect x="824" y="792" width="187" height="3" rx="2" fill="#fff" opacity="0.15"/><rect x="1009" y="828" width="332" height="3" rx="2" fill="#fff" opacity="0.17"/><rect x="1272" y="864" width="203" height="3" rx="2" fill="#fff" opacity="0.30"/><rect x="977" y="900" width="351" height="3" rx="2" fill="#fff" opacity="0.29"/><rect x="317" y="936" width="269" height="3" rx="2" fill="#fff" opacity="0.21"/><rect x="205" y="972" width="325" height="3" rx="2" fill="#fff" opacity="0.26"/><rect x="241" y="1008" width="293" height="3" rx="2" fill="#fff" opacity="0.31"/><rect x="750" y="1044" width="353" height="3" rx="2" fill="#fff" opacity="0.36"/><rect x="508" y="1080" width="161" height="3" rx="2" fill="#fff" opacity="0.31"/><rect x="236" y="1116" width="368" height="3" rx="2" fill="#fff" opacity="0.18"/><rect x="208" y="1152" width="265" height="3" rx="2" fill="#fff" opacity="0.31"/><rect x="286" y="1188" width="358" height="3" rx="2" fill="#fff" opacity="0.17"/>
+      <path d="M0 1200 L0 1104 L0 1074 L40 1072 L80 1070 L120 1069 L160 1068 L200 1068 L240 1069 L280 1070 L320 1071 L360 1074 L400 1076 L440 1079 L480 1083 L520 1086 L560 1091 L600 1095 L640 1099 L680 1104 L720 1108 L760 1113 L800 1117 L840 1121 L880 1125 L920 1129 L960 1132 L1000 1134 L1040 1136 L1080 1138 L1120 1139 L1160 1140 L1200 1140 L1240 1139 L1280 1138 L1320 1137 L1360 1134 L1400 1132 L1440 1129 L1480 1125 L1520 1122 L1560 1117 L1600 1113 L1600 1200 Z" fill="#3f6b55"/>
+</svg>
