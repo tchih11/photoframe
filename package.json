@@ -1,0 +1,14 @@
+{
+  "name": "photoframe",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build:demo": "node scripts/build-demo.mjs",
+    "dev:demo": "npm run build:demo && wrangler dev --env demo",
+    "deploy:demo": "npm run build:demo && wrangler deploy --env demo"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // このリポジトリの本番(photoframe.html)はiPadで直接開いて使うもので、Cloudflareにはデプロイしない。
+  // この設定は、note記事の読者に触ってもらうデモ版(env "demo")専用。
+  // `npm run build:demo` で dist/ を作ってから `wrangler deploy --env demo` すると、
+  // photoframe-demo という名前のWorkerに静的ファイルとしてデプロイされる。
+  "name": "photoframe",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "./dist"
+  },
+  "workers_dev": false,
+  "preview_urls": false,
+  "env": {
+    "demo": {
+      "name": "photoframe-demo",
+      // 記事に載せるURLは独自ドメインのサブドメインにする。workers.devのURLにはアカウントのサブドメイン
+      // (メールアドレスに近い文字列)が入るので、デモでは workers.dev とプレビューURLを無効にしておく。
+      "routes": [{ "pattern": "photo.sanji-no-daddy.com", "custom_domain": true }],
+      "workers_dev": false,
+      "preview_urls": false,
+      "triggers": { "crons": [] }
+    }
+  }
+}

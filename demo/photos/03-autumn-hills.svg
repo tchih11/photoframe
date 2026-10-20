@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6c38f"/><stop offset="1" stop-color="#fde9cf"/></linearGradient>
+<linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.25"/><stop offset="1" stop-color="#000" stop-opacity="0.25"/></linearGradient>
+</defs>
+      <rect width="1600" height="1200" fill="url(#sky)"/>
+      <circle cx="1120" cy="384" r="96" fill="#fff1d6" opacity="0.9"/>
+      <path d="M0 1200 L0 600 L178 537 L356 588 L533 495 L711 492 L889 638 L1067 581 L1244 685 L1422 522 L1600 659 L1600 1200 Z" fill="#d98c4a" opacity="0.7"/>
+      <path d="M0 1200 L0 744 L229 667 L457 719 L686 724 L914 839 L1143 727 L1371 730 L1600 720 L1600 1200 Z" fill="#b5532e"/>
+      <path d="M0 1200 L0 936 L0 876 L40 876 L80 878 L120 880 L160 883 L200 887 L240 892 L280 897 L320 903 L360 910 L400 917 L440 924 L480 931 L520 939 L560 946 L600 954 L640 961 L680 967 L720 974 L760 979 L800 984 L840 988 L880 991 L920 994 L960 995 L1000 996 L1040 996 L1080 994 L1120 992 L1160 989 L1200 985 L1240 980 L1280 975 L1320 969 L1360 962 L1400 955 L1440 948 L1480 941 L1520 933 L1560 926 L1600 918 L1600 1200 Z" fill="#7a3420"/>
+</svg>
